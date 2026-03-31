@@ -1,0 +1,27 @@
+Meta Glasses Voice — iOS setup (Xcode on a Mac)
+
+1) Create the app in Xcode
+   - File > New > Project > App (iOS)
+   - Interface: SwiftUI, Language: Swift
+   - Bundle ID: e.g. com.yourname.MetaGlassesVoice (must be unique in your Apple Developer account)
+
+2) Add Meta Wearables Swift package
+   - File > Add Package Dependencies
+   - URL: https://github.com/facebook/meta-wearables-dat-ios
+   - Add the "MWDATCore" product to your app target
+
+3) Add source files
+   - Drag the folder ios/MetaGlassesVoice/*.swift into the Xcode project (copy if needed)
+   - Ensure the target membership checkbox is ON for your app
+
+4) Info.plist
+   - Merge keys from ios/MetaGlassesVoice/Info.plist into your target Info (or replace if you use a custom plist)
+   - AppLinkURLScheme must match CFBundleURLSchemes (here: metaglassestest)
+
+5) Signing
+   - Select your Team in Signing & Capabilities so DEVELOPMENT_TEAM is set (required for MWDAT TeamID substitution)
+
+6) Build & run on your iPhone
+   - Install Meta AI, pair glasses, then use Register / Grant camera permission / Prepare Bluetooth / Start listening
+
+Note: Meta’s docs warn App Store submission is limited while the SDK uses ExternalAccessory; use Developer Mode / test devices as appropriate.
