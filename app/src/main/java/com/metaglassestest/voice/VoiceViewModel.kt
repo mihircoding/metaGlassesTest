@@ -8,12 +8,30 @@ import android.media.AudioManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import android.speech.tts.TextToSpeech
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.mlkit.vision.barcode.BarcodeScanner
+import com.google.mlkit.vision.barcode.BarcodeScannerOptions
+import com.google.mlkit.vision.barcode.BarcodeScanning
+import com.google.mlkit.vision.barcode.common.Barcode
+import com.google.mlkit.vision.common.InputImage
+import com.meta.wearable.dat.camera.StreamSession
+import com.meta.wearable.dat.camera.startStreamSession
+import com.meta.wearable.dat.camera.types.StreamConfiguration
+import com.meta.wearable.dat.camera.types.StreamSessionState
+import com.meta.wearable.dat.camera.types.VideoFrame
+import com.meta.wearable.dat.camera.types.VideoQuality
 import com.meta.wearable.dat.core.Wearables
+import com.meta.wearable.dat.core.selectors.AutoDeviceSelector
+import com.meta.wearable.dat.core.types.Permission
+import com.meta.wearable.dat.core.types.PermissionStatus
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,6 +43,41 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private var speechRecognizer: SpeechRecognizer? = null
+
+    private val deviceSelector = AutoDeviceSelector()
+    private var streamSession: StreamSession? = null
+    private var streamVideoJob: Job? = null
+    private var streamStateJob: Job? = null
+
+    private val barcodeScanner: BarcodeScanner =
+        BarcodeScanning.getClient(
+            BarcodeScannerOptions.Builder()
+                .setBarcodeFormats(
+                    Barcode.FORMAT_QR_CODE,
+                    Barcode.FORMAT_CODE_128,
+                    Barcode.FORMAT_CODE_39,
+                    Barcode.FORMAT_CODE_93,
+                    Barcode.FORMAT_CODABAR,
+                    Barcode.FORMAT_DATA_MATRIX,
+                    Barcode.FORMAT_EAN_13,
+                    Barcode.FORMAT_EAN_8,
+                    Barcode.FORMAT_ITF,
+                    Barcode.FORMAT_UPC_A,
+                    Barcode.FORMAT_UPC_E,
+                    Barcode.FORMAT_PDF417,
+                    Barcode.FORMAT_AZTEC,
+                )
+                .build(),
+        )
+
+    @Volatile
+    private var barcodeDecodeBusy = false
+
+    private var lastBarcodeProcessRealtimeMs = 0L
+    private var lastAnnouncedRaw: String? = null
+    private var lastAnnouncedAtMs = 0L
+
+    private var tts: TextToSpeech? = null
 
     private val _uiState = MutableStateFlow(VoiceUiState())
     val uiState: StateFlow<VoiceUiState> = _uiState.asStateFlow()
@@ -104,6 +157,18 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
             override fun onEvent(eventType: Int, params: Bundle?) {}
         }
 
+    init {
+        mainHandler.post {
+            val ctx = getApplication<Application>()
+            tts =
+                TextToSpeech(ctx) { status ->
+                    if (status == TextToSpeech.SUCCESS) {
+                        tts?.language = Locale.getDefault()
+                    }
+                }
+        }
+    }
+
     fun startMonitoring() {
         val app = getApplication<Application>()
         val onDevice = SpeechRecognizer.isOnDeviceRecognitionAvailable(app)
@@ -133,6 +198,154 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
 
     fun startUnregistration(activity: Activity) {
         Wearables.startUnregistration(activity)
+    }
+
+    /**
+     * Streams glasses camera, decodes barcodes with ML Kit, shows result, and speaks it via TTS (route audio to glasses first).
+     */
+    fun startBarcodeScan(requestWearablePermission: suspend (Permission) -> PermissionStatus) {
+        viewModelScope.launch {
+            clearError()
+            val check = Wearables.checkPermissionStatus(Permission.CAMERA)
+            check.onFailure { err, _ ->
+                _uiState.update { it.copy(errorMessage = "Permission check error: ${err.description}") }
+                return@launch
+            }
+            var granted = check.getOrNull() == PermissionStatus.Granted
+            if (!granted) {
+                val requested = requestWearablePermission(Permission.CAMERA)
+                granted = requested == PermissionStatus.Granted
+            }
+            if (!granted) {
+                _uiState.update { it.copy(errorMessage = "Glasses camera permission denied") }
+                return@launch
+            }
+
+            stopBarcodeStreamInternal()
+
+            val session =
+                try {
+                    Wearables.startStreamSession(
+                        getApplication(),
+                        deviceSelector,
+                        StreamConfiguration(videoQuality = VideoQuality.LOW, frameRate = 15),
+                    )
+                } catch (e: Exception) {
+                    _uiState.update {
+                        it.copy(errorMessage = e.message ?: "Could not start glasses camera stream")
+                    }
+                    return@launch
+                }
+
+            streamSession = session
+            _uiState.update { it.copy(barcodeScanning = true) }
+
+            streamVideoJob =
+                viewModelScope.launch(Dispatchers.Default) {
+                    session.videoStream.collect { frame -> processFrameForBarcode(frame) }
+                }
+            streamStateJob =
+                viewModelScope.launch {
+                    session.state.collect { st ->
+                        _uiState.update { it.copy(streamSessionState = st) }
+                        if (st == StreamSessionState.STOPPED) {
+                            stopBarcodeStreamInternal()
+                        }
+                    }
+                }
+        }
+    }
+
+    fun stopBarcodeScan() {
+        viewModelScope.launch { stopBarcodeStreamInternal() }
+    }
+
+    private fun stopBarcodeStreamInternal() {
+        streamVideoJob?.cancel()
+        streamStateJob?.cancel()
+        streamVideoJob = null
+        streamStateJob = null
+        try {
+            streamSession?.close()
+        } catch (_: Exception) {
+        }
+        streamSession = null
+        barcodeDecodeBusy = false
+        _uiState.update {
+            it.copy(
+                barcodeScanning = false,
+                streamSessionState = null,
+            )
+        }
+    }
+
+    private fun processFrameForBarcode(frame: VideoFrame) {
+        if (barcodeDecodeBusy) return
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastBarcodeProcessRealtimeMs < 400) return
+        lastBarcodeProcessRealtimeMs = now
+        barcodeDecodeBusy = true
+
+        val bitmap = YuvToBitmapConverter.convert(frame.buffer, frame.width, frame.height)
+        if (bitmap == null) {
+            barcodeDecodeBusy = false
+            return
+        }
+
+        val image = InputImage.fromBitmap(bitmap, 0)
+        barcodeScanner
+            .process(image)
+            .addOnSuccessListener { barcodes ->
+                val b = barcodes.firstOrNull()
+                if (b != null) {
+                    val raw = b.rawValue ?: b.displayValue
+                    if (!raw.isNullOrBlank()) {
+                        val format = barcodeFormatLabel(b.format)
+                        mainHandler.post { announceBarcodeIfNew(raw.trim(), format) }
+                    }
+                }
+            }
+            .addOnCompleteListener {
+                if (!bitmap.isRecycled) {
+                    bitmap.recycle()
+                }
+                barcodeDecodeBusy = false
+            }
+    }
+
+    private fun announceBarcodeIfNew(raw: String, format: String) {
+        val t = SystemClock.elapsedRealtime()
+        if (raw == lastAnnouncedRaw && t - lastAnnouncedAtMs < 5000) return
+        lastAnnouncedRaw = raw
+        lastAnnouncedAtMs = t
+
+        _uiState.update {
+            it.copy(
+                lastBarcodeRaw = raw,
+                lastBarcodeFormat = format,
+                statusMessage = "Heard via glasses speaker (use Route audio)",
+            )
+        }
+
+        val line = "Scanned $format. The value is $raw."
+        speakWithTts(line)
+    }
+
+    private fun speakWithTts(text: String) {
+        mainHandler.post {
+            val engine = tts
+            if (engine == null) {
+                tts =
+                    TextToSpeech(getApplication()) { status ->
+                        if (status == TextToSpeech.SUCCESS) {
+                            tts?.language = Locale.getDefault()
+                            tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "barcode-${System.nanoTime()}")
+                        }
+                    }
+            } else {
+                engine.speak(text, TextToSpeech.QUEUE_FLUSH, null, "barcode-${System.nanoTime()}")
+            }
+        }
     }
 
     fun routeAudioToGlassesBluetooth() {
@@ -182,6 +395,10 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearTranscript() {
         _uiState.update { it.copy(transcript = "", partialText = "") }
+    }
+
+    fun clearLastBarcode() {
+        _uiState.update { it.copy(lastBarcodeRaw = null, lastBarcodeFormat = null) }
     }
 
     fun toggleListening() {
@@ -243,9 +460,23 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
 
     override fun onCleared() {
         super.onCleared()
+        streamVideoJob?.cancel()
+        streamStateJob?.cancel()
+        try {
+            streamSession?.close()
+        } catch (_: Exception) {
+        }
+        streamSession = null
+        try {
+            barcodeScanner.close()
+        } catch (_: Exception) {
+        }
         mainHandler.post {
             speechRecognizer?.destroy()
             speechRecognizer = null
+            tts?.stop()
+            tts?.shutdown()
+            tts = null
         }
     }
 }

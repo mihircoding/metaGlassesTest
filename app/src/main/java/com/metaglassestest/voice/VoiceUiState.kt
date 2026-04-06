@@ -1,5 +1,6 @@
 package com.metaglassestest.voice
 
+import com.meta.wearable.dat.camera.types.StreamSessionState
 import com.meta.wearable.dat.core.types.DeviceIdentifier
 import com.meta.wearable.dat.core.types.RegistrationState
 
@@ -14,4 +15,8 @@ data class VoiceUiState(
     val transcript: String = "",
     val statusMessage: String? = null,
     val errorMessage: String? = null,
+    val barcodeScanning: Boolean = false,
+    val streamSessionState: StreamSessionState? = null,
+    val lastBarcodeFormat: String? = null,
+    val lastBarcodeRaw: String? = null,
 )

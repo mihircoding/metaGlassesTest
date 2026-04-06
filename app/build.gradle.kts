@@ -35,6 +35,7 @@ android {
 }
 
 dependencies {
+    implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.material3)
@@ -44,5 +45,7 @@ dependencies {
     implementation(libs.kotlinx.collections.immutable)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.mwdat.core)
+    implementation(libs.mwdat.camera)
     implementation(libs.mwdat.mockdevice)
+    implementation(libs.mlkit.barcode.scanning)
 }

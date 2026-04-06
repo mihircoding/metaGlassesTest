@@ -40,13 +40,22 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.meta.wearable.dat.core.Wearables
+import com.meta.wearable.dat.core.types.Permission
+import com.meta.wearable.dat.core.types.PermissionStatus
 import com.meta.wearable.dat.core.types.RegistrationState
+import kotlin.coroutines.resume
+import kotlinx.coroutines.CancellableContinuation
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 class MainActivity : ComponentActivity() {
 
@@ -61,6 +70,26 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+    private var permissionContinuation: CancellableContinuation<PermissionStatus>? = null
+    private val permissionMutex = Mutex()
+
+    private val wearablesPermissionLauncher =
+        registerForActivityResult(Wearables.RequestPermissionContract()) { result ->
+            val status = result.getOrDefault(PermissionStatus.Denied)
+            permissionContinuation?.resume(status)
+            permissionContinuation = null
+        }
+
+    private suspend fun requestWearablePermission(permission: Permission): PermissionStatus {
+        return permissionMutex.withLock {
+            suspendCancellableCoroutine { continuation ->
+                permissionContinuation = continuation
+                continuation.invokeOnCancellation { permissionContinuation = null }
+                wearablesPermissionLauncher.launch(permission)
+            }
+        }
+    }
+
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -68,6 +97,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val snackbarHostState = remember { SnackbarHostState() }
             val uiState by viewModel.uiState.collectAsState()
+            val scope = rememberCoroutineScope()
 
             LaunchedEffect(uiState.errorMessage) {
                 val msg = uiState.errorMessage
@@ -95,6 +125,15 @@ class MainActivity : ComponentActivity() {
                         onClearRoute = { viewModel.clearBluetoothRoute() },
                         onToggleListen = { viewModel.toggleListening() },
                         onClearTranscript = { viewModel.clearTranscript() },
+                        onStartBarcodeScan = {
+                            scope.launch {
+                                viewModel.startBarcodeScan { perm ->
+                                    requestWearablePermission(perm)
+                                }
+                            }
+                        },
+                        onStopBarcodeScan = { viewModel.stopBarcodeScan() },
+                        onClearBarcode = { viewModel.clearLastBarcode() },
                     )
                 }
             }
@@ -137,6 +176,9 @@ private fun VoiceScreen(
     onClearRoute: () -> Unit,
     onToggleListen: () -> Unit,
     onClearTranscript: () -> Unit,
+    onStartBarcodeScan: () -> Unit,
+    onStopBarcodeScan: () -> Unit,
+    onClearBarcode: () -> Unit,
 ) {
     Column(
         modifier =
@@ -163,6 +205,13 @@ private fun VoiceScreen(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
+        Text(
+            text =
+                "Barcode stream: ${if (uiState.barcodeScanning) "on (${uiState.streamSessionState})" else "off"}",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
         Button(onClick = onRegister, modifier = Modifier.fillMaxWidth()) {
             Text("Register with Meta AI")
         }
@@ -171,10 +220,31 @@ private fun VoiceScreen(
         }
 
         Button(onClick = onRouteBluetooth, modifier = Modifier.fillMaxWidth()) {
-            Text("Route mic to Bluetooth (glasses)")
+            Text("Route audio to Bluetooth (glasses)")
         }
         OutlinedButton(onClick = onClearRoute, modifier = Modifier.fillMaxWidth()) {
             Text("Clear Bluetooth route")
+        }
+
+        Text(
+            text = "Point the glasses camera at a barcode or QR code. Audio is spoken via TTS (use Route audio for glasses).",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        Button(
+            onClick = onStartBarcodeScan,
+            enabled = !uiState.barcodeScanning,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("Start barcode scan (glasses camera)")
+        }
+        OutlinedButton(
+            onClick = onStopBarcodeScan,
+            enabled = uiState.barcodeScanning,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("Stop barcode scan")
         }
 
         Button(
@@ -196,7 +266,33 @@ private fun VoiceScreen(
 
         uiState.statusMessage?.let { Text(it, style = MaterialTheme.typography.labelMedium) }
 
-        RowActions(onClearTranscript)
+        RowActions(onClearTranscript, onClearBarcode)
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors =
+                CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                ),
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("Last barcode", style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.height(8.dp))
+                val fmt = uiState.lastBarcodeFormat
+                val raw = uiState.lastBarcodeRaw
+                val text =
+                    if (fmt == null && raw == null) {
+                        "(scan a code)"
+                    } else {
+                        "${fmt ?: "Unknown"}: ${raw ?: ""}"
+                    }
+                Text(
+                    text = text,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontFamily = FontFamily.Monospace,
+                )
+            }
+        }
 
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -234,8 +330,15 @@ private fun VoiceScreen(
 }
 
 @Composable
-private fun RowActions(onClearTranscript: () -> Unit) {
-    Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End) {
+private fun RowActions(onClearTranscript: () -> Unit, onClearBarcode: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.End,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        TextButton(onClick = onClearBarcode) {
+            Text("Clear barcode")
+        }
         TextButton(onClick = onClearTranscript) {
             Text("Clear transcript")
         }

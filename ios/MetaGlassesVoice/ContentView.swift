@@ -7,6 +7,7 @@ import SwiftUI
 struct ContentView: View {
     @ObservedObject var wearablesVM: WearablesViewModel
     @StateObject private var speech = OnDeviceSpeechRecognizer()
+    @StateObject private var barcode = BarcodeScannerSession()
 
     var body: some View {
         NavigationStack {
@@ -38,6 +39,27 @@ struct ContentView: View {
                         } catch {
                             wearablesVM.presentError(error.localizedDescription)
                         }
+                    }
+
+                    Text("Point the glasses at a barcode. Grant camera permission first. Route Bluetooth so speech plays in the glasses.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+
+                    Button("Start barcode scan (glasses camera)") {
+                        Task { await barcode.start() }
+                    }
+                    .disabled(barcode.isScanning)
+                    .buttonStyle(.borderedProminent)
+
+                    Button("Stop barcode scan") {
+                        Task { await barcode.stop() }
+                    }
+                    .disabled(!barcode.isScanning)
+
+                    if let sym = barcode.lastSymbologyLabel, let pay = barcode.lastPayload {
+                        Text("Last: \(sym) — \(pay)")
+                            .font(.caption.monospaced())
+                            .textSelection(.enabled)
                     }
 
                     Button(speech.isListening ? "Stop listening" : "Start listening") {
