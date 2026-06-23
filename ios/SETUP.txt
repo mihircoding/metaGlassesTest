@@ -1,29 +1,132 @@
-Meta Glasses Voice — iOS setup (Xcode on a Mac)
+NutriScan — iOS Nutrition App with Meta Glasses
+================================================
 
-1) Create the app in Xcode
+FEATURES
+--------
+- AI Food Scanning via Meta Glasses (GPT-4o Vision)
+- Barcode scanning → Open Food Facts nutrition lookup
+- Manual food search (Open Food Facts database)
+- Daily calorie & macro tracking with progress rings
+- Monthly history calendar with trend chart
+- User-set caloric limits & macro goals
+- Medical condition profiles (diabetes, liver disease, weight training, etc.)
+  with condition-specific dietary guidelines + auto-suggested goals
+- Doctor Portal: login, view patient food logs, assign meal plans per condition
+
+FILE STRUCTURE
+--------------
+ios/MetaGlassesVoice/
+├── MetaGlassesVoiceApp.swift      — App entry (unchanged)
+├── ContentView.swift              — Main TabView (UPDATED)
+├── WearablesViewModel.swift       — Meta glasses registration (unchanged)
+├── BarcodeScannerSession.swift    — Glasses camera barcode stream (unchanged)
+├── OnDeviceSpeechRecognizer.swift — On-device speech (unchanged)
+├── RegistrationView.swift         — Meta AI URL handling (unchanged)
+├── Info.plist                     — Permissions (unchanged)
+├── Models/
+│   ├── FoodEntry.swift            — Food log entry + daily summary
+│   ├── UserProfile.swift          — User profile, goals, BMR/TDEE
+│   ├── MedicalCondition.swift     — All conditions + dietary guidelines
+│   └── DoctorPatient.swift        — Doctor, patient, meal plan models + demo data
+├── Services/
+│   ├── NutritionDataStore.swift   — UserDefaults JSON persistence
+│   ├── FoodDatabaseService.swift  — Open Food Facts API (barcode + search)
+│   └── AIFoodScannerService.swift — OpenAI GPT-4o Vision API
+├── ViewModels/
+│   ├── NutritionViewModel.swift   — App state, scan logic, food entries
+│   └── DoctorViewModel.swift      — Doctor auth, patients, meal plans
+└── Views/
+    ├── HomeView.swift             — Dashboard: calorie ring, macro bars, condition tile
+    ├── ScanView.swift             — Glasses AI / Barcode / Manual search hub
+    ├── FoodLogView.swift          — Daily food log grouped by meal
+    ├── MonthlyHistoryView.swift   — Calendar + 14-day calorie trend
+    ├── SettingsView.swift         — Profile, goals, condition, API key
+    ├── DoctorPortalView.swift     — Doctor login, dashboard, patient detail
+    └── CreateMealPlanView.swift   — Assign condition-specific meal plans
+
+XCODE SETUP STEPS
+-----------------
+
+1) Create the Xcode project
    - File > New > Project > App (iOS)
    - Interface: SwiftUI, Language: Swift
-   - Bundle ID: e.g. com.yourname.MetaGlassesVoice (must be unique in your Apple Developer account)
+   - iOS Deployment Target: 16.0 minimum (recommended: 17.0)
+   - Bundle ID: com.yourname.NutriScan (must be unique)
 
 2) Add Meta Wearables Swift package
    - File > Add Package Dependencies
    - URL: https://github.com/facebook/meta-wearables-dat-ios
-   - Add these products to your app target: **MWDATCore** and **MWDATCamera** (camera is required for barcode scanning from glasses)
+   - Add targets: MWDATCore  and  MWDATCamera
 
 3) Add source files
-   - Drag the folder ios/MetaGlassesVoice/*.swift into the Xcode project (copy if needed)
-   - Ensure the target membership checkbox is ON for your app
+   - Drag ENTIRE ios/MetaGlassesVoice/ folder into Xcode navigator
+   - IMPORTANT: Drag all subfolders (Models/, Services/, ViewModels/, Views/)
+   - When prompted: "Copy if needed" = ON, "Create groups" = ON
+   - Ensure all files are checked for your app target
 
-4) Info.plist
-   - Merge keys from ios/MetaGlassesVoice/Info.plist into your target Info (or replace if you use a custom plist)
-   - AppLinkURLScheme must match CFBundleURLSchemes (here: metaglassestest)
+4) Info.plist — add these keys (or merge with existing)
+   - NSCameraUsageDescription: "Used to scan food barcodes via Meta glasses"
+   - NSMicrophoneUsageDescription: "Used for voice commands via Meta glasses"
+   - NSSpeechRecognitionUsageDescription: "Used to transcribe voice from Meta glasses"
+   - NSBluetoothAlwaysUsageDescription: "Used to connect Meta glasses audio"
+   - CFBundleURLSchemes: ["metaglassestest"]
+   - (AppLinkURLScheme must match CFBundleURLSchemes)
 
 5) Signing
-   - Select your Team in Signing & Capabilities so DEVELOPMENT_TEAM is set (required for MWDAT TeamID substitution)
+   - Xcode > Target > Signing & Capabilities > select your Team
+   - DEVELOPMENT_TEAM is required for MWDAT SDK
 
-6) Build & run on your iPhone
-   - Install Meta AI, pair glasses, then use Register / Grant camera permission / Prepare Bluetooth
-   - Barcode: Start barcode scan, point glasses at a code; the app speaks the decoded value (route Bluetooth for glasses audio)
-   - Voice: Start listening for on-device speech-to-text as before
+6) Build & run on device (not simulator)
+   - Meta glasses require a real iPhone
 
-Note: Meta’s docs warn App Store submission is limited while the SDK uses ExternalAccessory; use Developer Mode / test devices as appropriate.
+FEATURES WALKTHROUGH
+--------------------
+
+Patient side:
+- Home tab: daily calorie ring, macro progress bars, meal plan banner
+- Scan tab: choose "Meta Glasses AI", "Barcode", or "Search Food"
+  - Glasses AI: tap "Start Camera", point at food, tap "Analyze Food"
+    → Requires OpenAI API key (set in Profile tab > AI Food Scanning)
+  - Barcode: tap "Start Scan", glasses/phone detects barcode → auto-lookup
+  - Search: type food name → live search → tap to add
+- Log tab: swipe to delete/edit entries; all meals grouped by type
+- History tab: color-coded monthly calendar, monthly stats, trend chart
+- Profile tab: set caloric limit, macros, medical condition, OpenAI API key
+
+Doctor side (Profile tab → Doctor Login):
+- Demo credentials: doctor@nutrition.app / doctor123
+- Dashboard shows list of assigned patients with avg calorie intake
+- Patient detail: 7-day food log visualization, compliance warnings
+- Create Meal Plan: loads condition-specific food templates
+  (diabetes, liver cirrhosis, weight training, etc. all have pre-built templates)
+- Doctor notes saved per patient
+
+API KEYS NEEDED
+---------------
+- OpenAI API key (for glasses AI food scanning)
+  → Get at: https://platform.openai.com/api-keys
+  → Set in app: Profile tab → AI Food Scanning → paste key
+  → The key is stored locally on device only (UserDefaults)
+  → Food barcode lookup (Open Food Facts) is free — no key needed
+
+MEDICAL CONDITIONS SUPPORTED
+-----------------------------
+- No Condition (general healthy diet)
+- Diabetes Type 1 & Type 2
+- Weight Training / Bodybuilding
+- Liver Cirrhosis / Liver Disease
+- Heart Disease / Hypertension
+- Chronic Kidney Disease
+- Celiac Disease
+- Obesity / Weight Loss
+- Hypothyroidism
+- IBS (Low-FODMAP)
+
+Each condition has:
+- Custom caloric and macro targets
+- Dietary recommendations list
+- Foods to avoid list
+- Pre-built meal plan template for doctors
+
+Note: Meta's docs warn App Store submission is limited while SDK uses
+ExternalAccessory; use Developer Mode / test devices as appropriate.
