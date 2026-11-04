@@ -28,6 +28,9 @@ struct AddFoodView: View {
     @State private var showPhoto = false
     @State private var scanned: Entry?
     @State private var lookingUp = false
+    /// Set while the visible error came from a barcode lookup, so Retry repeats that lookup.
+    @State private var lastCode: String?
+    @State private var customFailed = false
 
     var body: some View {
         NavigationStack {
@@ -76,12 +79,19 @@ struct AddFoodView: View {
             if let error {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(error).foregroundStyle(Theme.bad).font(.footnote)
-                    Button("Retry") { retryTick += 1 }.buttonStyle(.bordered)
+                    Button("Retry") { retry() }.buttonStyle(.bordered)
                 }
             } else if loading || lookingUp {
                 ProgressView().frame(maxWidth: .infinity)
             } else if entries.isEmpty {
                 Text(emptyText).foregroundStyle(.secondary)
+            }
+            if customFailed, error == nil {
+                HStack {
+                    Text("Couldn't load My Foods").font(.footnote).foregroundStyle(Theme.bad)
+                    Spacer()
+                    Button("Retry") { retryTick += 1 }.buttonStyle(.bordered)
+                }
             }
             ForEach(entries) { entry in
                 NavigationLink {
@@ -113,6 +123,8 @@ struct AddFoodView: View {
 
     private func load() async {
         error = nil
+        lastCode = nil
+        customFailed = false
         let q = query.trimmingCharacters(in: .whitespaces)
         do {
             switch segment {
@@ -121,7 +133,13 @@ struct AddFoodView: View {
                 try await Task.sleep(for: .milliseconds(400))  // debounce: a newer keystroke cancels this task
                 loading = true
                 defer { loading = false }
-                let custom = (try? await Backend.shared.customFoods(matching: q)) ?? []
+                var custom: [CustomFoodRow] = []
+                do {
+                    custom = try await Backend.shared.customFoods(matching: q)
+                } catch {
+                    if Task.isCancelled { return }  // stale search, not a failure
+                    customFailed = true  // still show USDA/OFF results, with a Retry note
+                }
                 let found = try await Backend.shared.searchFoods(query: q)
                 entries = custom.map(Self.entry(custom:)) + found.map { Entry(item: $0, source: .search) }
             case .recent:
@@ -149,6 +167,7 @@ struct AddFoodView: View {
 
     private func lookUp(_ code: String) async {
         lookingUp = true
+        lastCode = nil
         error = nil
         defer { lookingUp = false }
         do {
@@ -156,10 +175,17 @@ struct AddFoodView: View {
                 scanned = Entry(item: product, source: .barcode)
             } else {
                 error = "No product found for barcode \(code)."
+                lastCode = code
             }
         } catch {
             self.error = error.localizedDescription
+            lastCode = code
         }
+    }
+
+    /// A barcode error retries the lookup; any other error reloads the current segment.
+    private func retry() {
+        if let code = lastCode { Task { await lookUp(code) } } else { retryTick += 1 }
     }
 
     // NutrientSource has no "manual" case; the placeholder only feeds FoodItem.id, and the log row records
