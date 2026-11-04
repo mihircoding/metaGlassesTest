@@ -63,6 +63,13 @@ select rls_test.ok((select kcal_target = 1800 and sodium_mg = 1500 and targets_s
 select accept_recommendation((select id from recommendations where kind = 'diet_plan'));
 select rls_test.ok((select count(*) from diet_plans where is_active) = 1, 'one active plan');
 select rls_test.ok((select author_id from diet_plans where is_active) = 'd1000000-0000-4000-8000-000000000001', 'plan authored by doctor');
+update diet_plans set is_active = false where is_active;
+select rls_test.ok((select count(*) from diet_plans where is_active) = 0, 'patient can deactivate doctor plan');
+update diet_plans set is_active = true where user_id = auth.uid();
+select rls_test.ok((select count(*) from diet_plans where is_active) = 1, 'patient can re-activate plan');
+do $$ begin
+  begin update diet_plans set author_id = auth.uid(); exception when others then return; end;
+  raise exception 'RLS check failed: patient changed plan author'; end $$;
 do $$ begin
   begin perform accept_recommendation((select id from recommendations where kind = 'targets')); exception when others then return; end;
   raise exception 'RLS check failed: accepted twice'; end $$;

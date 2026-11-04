@@ -274,12 +274,12 @@ create policy workouts_doctor on workouts for select using (is_doctor_of(user_id
 create policy weight_logs_own on weight_logs for all using (user_id = auth.uid()) with check (user_id = auth.uid());
 create policy weight_logs_doctor on weight_logs for select using (is_doctor_of(user_id));
 
--- diet_plans: owner can only write plans they authored themselves
+-- diet_plans: owner edits any own plan; authorship is protected by column grants below
 create policy diet_plans_select_own on diet_plans for select using (user_id = auth.uid());
 create policy diet_plans_insert_own on diet_plans for insert
   with check (user_id = auth.uid() and author_id = auth.uid());
 create policy diet_plans_update_own on diet_plans for update
-  using (user_id = auth.uid()) with check (user_id = auth.uid() and author_id = auth.uid());
+  using (user_id = auth.uid()) with check (user_id = auth.uid());
 create policy diet_plans_delete_own on diet_plans for delete using (user_id = auth.uid());
 create policy diet_plans_doctor on diet_plans for select using (is_doctor_of(user_id));
 
@@ -306,6 +306,8 @@ revoke all on all tables in schema public from anon, authenticated;
 grant select, insert, update, delete on profiles, food_logs, custom_foods, workouts, weight_logs, diet_plans to authenticated;
 grant select on care_links, recommendations to authenticated;
 grant insert on recommendations to authenticated;
+revoke update on diet_plans from authenticated;
+grant update (condition_id, name, notes, targets, meals, is_active) on diet_plans to authenticated;
 grant update (status) on care_links, recommendations to authenticated;
 
 revoke execute on function is_doctor_of(uuid), request_patient(text), respond_care_link(uuid, boolean),
