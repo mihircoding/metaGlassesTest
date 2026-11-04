@@ -17,9 +17,11 @@ test('demo seed', async () => {
   const db = new PGlite({ extensions: { pgcrypto } });
   await db.exec(sql('./auth_stub.sql'));
   await db.exec(sql('../migrations/0001_init.sql'));
+  await db.exec(`insert into auth.users (id, email, raw_user_meta_data)
+    values ('e0000000-0000-4000-8000-000000000001', 'existing@example.com', '{"role":"patient","full_name":"Existing"}')`);
   await db.exec(sql('../seed.sql'));
   const one = async (q) => Object.values((await db.query(q)).rows[0])[0];
-  assert.equal(Number(await one(`select count(*) from profiles`)), 4);
+  assert.equal(Number(await one(`select count(*) from profiles`)), 5);
   assert.equal(Number(await one(`select count(*) from care_links where status = 'accepted'`)), 3);
   for (const email of ['maria@nutravision.demo', 'james@nutravision.demo', 'alex@nutravision.demo']) {
     const days = await one(`select count(distinct (logged_at at time zone 'UTC')::date) from food_logs f join profiles p on p.id = f.user_id where p.email = '${email}'`);
@@ -32,4 +34,8 @@ test('demo seed', async () => {
     where p.email = 'james@nutravision.demo' and logged_at > now() - interval '7 days' group by (logged_at at time zone 'UTC')::date) d where s > 1500`));
   assert.ok(saltyDays >= 2 && saltyDays <= 5, `salty days ${saltyDays}`);
   assert.equal(Number(await one(`select count(*) from auth.identities`)), 4);
+  const ex = "'e0000000-0000-4000-8000-000000000001'";
+  for (const [tbl, col] of [['food_logs', 'user_id'], ['workouts', 'user_id'], ['weight_logs', 'user_id'], ['care_links', 'patient_id'], ['auth.identities', 'user_id']]) {
+    assert.equal(Number(await one(`select count(*) from ${tbl} where ${col} = ${ex}`)), 0, tbl);
+  }
 });

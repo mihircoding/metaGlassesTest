@@ -20,7 +20,9 @@ from (values
 
 insert into auth.identities (id, user_id, provider_id, identity_data, provider, last_sign_in_at, created_at, updated_at)
 select gen_random_uuid(), id, id::text, jsonb_build_object('sub', id::text, 'email', email), 'email', now(), now(), now()
-from auth.users;
+from auth.users
+where id in ('a0000000-0000-4000-8000-000000000001', 'a0000000-0000-4000-8000-000000000002',
+  'a0000000-0000-4000-8000-000000000003', 'a0000000-0000-4000-8000-000000000004');
 
 -- ---------------------------------------------------------------- profiles (created by trigger; update only)
 update profiles set specialty = 'Endocrinology', license_number = 'MD-48213'
@@ -47,7 +49,7 @@ update profiles set birth_date = '1999-06-10', sex = 'male', height_cm = 180, we
 -- ---------------------------------------------------------------- care links, recommendation
 insert into care_links (doctor_id, patient_id, patient_email, status, responded_at)
 select 'a0000000-0000-4000-8000-000000000001', id, email, 'accepted', now() - interval '40 days'
-from profiles where role = 'patient';
+from profiles where id in ('a0000000-0000-4000-8000-000000000002', 'a0000000-0000-4000-8000-000000000003', 'a0000000-0000-4000-8000-000000000004');
 
 insert into recommendations (doctor_id, patient_id, kind, payload, message, status)
 values ('a0000000-0000-4000-8000-000000000001', 'a0000000-0000-4000-8000-000000000003', 'targets',
@@ -131,7 +133,7 @@ select p.id,
   'manual'
 from profiles p
 join generate_series(1, 30) as d(n) on d.n % 7 in (1, 3, 5, 6)
-where p.role = 'patient';
+where p.id in ('a0000000-0000-4000-8000-000000000002', 'a0000000-0000-4000-8000-000000000003', 'a0000000-0000-4000-8000-000000000004');
 
 -- ---------------------------------------------------------------- weekly weights (12 weeks, trending to goal)
 insert into weight_logs (user_id, measured_at, weight_kg, source)
@@ -141,4 +143,4 @@ select p.id,
   'manual'
 from profiles p
 cross join generate_series(0, 11) as w(n)
-where p.role = 'patient';
+where p.id in ('a0000000-0000-4000-8000-000000000002', 'a0000000-0000-4000-8000-000000000003', 'a0000000-0000-4000-8000-000000000004');
