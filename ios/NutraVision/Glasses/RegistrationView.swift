@@ -6,7 +6,7 @@ import MWDATCore
 import SwiftUI
 
 struct RegistrationView: View {
-    @ObservedObject var viewModel: WearablesViewModel
+    let viewModel: WearablesViewModel
 
     var body: some View {
         EmptyView()

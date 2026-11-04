@@ -1,13 +1,9 @@
-//
-// MetaGlassesVoice — iOS companion for Meta AI glasses (voice → on-device transcription).
-//
-
 import MWDATCore
 import SwiftUI
 
 @main
-struct MetaGlassesVoiceApp: App {
-    @StateObject private var wearablesVM: WearablesViewModel
+struct NutraVisionApp: App {
+    @State private var wearablesVM: WearablesViewModel
 
     init() {
         do {
@@ -15,12 +11,13 @@ struct MetaGlassesVoiceApp: App {
         } catch {
             assertionFailure("Wearables.configure() failed: \(error)")
         }
-        _wearablesVM = StateObject(wrappedValue: WearablesViewModel(wearables: Wearables.shared))
+        _wearablesVM = State(wrappedValue: WearablesViewModel(wearables: Wearables.shared))
     }
 
     var body: some Scene {
         WindowGroup {
-            ContentView(wearablesVM: wearablesVM)
+            RootView()
+                .environment(wearablesVM)
                 .overlay {
                     RegistrationView(viewModel: wearablesVM)
                 }

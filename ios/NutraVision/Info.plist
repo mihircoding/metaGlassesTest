@@ -8,6 +8,8 @@
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleDisplayName</key>
+	<string>NutraVision</string>
 	<key>CFBundleName</key>
 	<string>$(PRODUCT_NAME)</string>
 	<key>CFBundlePackageType</key>
@@ -26,7 +28,7 @@
 			<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>metaglassestest</string>
+				<string>nutravision</string>
 			</array>
 		</dict>
 	</array>
@@ -45,14 +47,21 @@
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>Needed to connect to Meta AI glasses.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Microphone is used to transcribe your voice (including from glasses when connected).</string>
+	<string>Hear voice commands like 'scan this' and 'add it'.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Speech recognition runs on-device to show what you said.</string>
+	<string>Understand voice commands on your device.</string>
+
+	<key>NSCameraUsageDescription</key>
+	<string>Scan food and barcodes with your phone camera.</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>Import workouts, steps and weight from Apple Health.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>Save the food and weight you log to Apple Health.</string>
 
 	<key>MWDAT</key>
 	<dict>
 		<key>AppLinkURLScheme</key>
-		<string>metaglassestest://</string>
+		<string>nutravision://</string>
 		<key>MetaAppID</key>
 		<string></string>
 		<key>TeamID</key>

@@ -3,18 +3,20 @@
 //
 
 import MWDATCore
+import Observation
 import SwiftUI
 
+@Observable
 @MainActor
-final class WearablesViewModel: ObservableObject {
-    @Published private(set) var devices: [DeviceIdentifier] = []
-    @Published private(set) var registrationState: RegistrationState
-    @Published var isErrorPresented: Bool = false
-    @Published var errorMessage: String = ""
+final class WearablesViewModel {
+    private(set) var devices: [DeviceIdentifier] = []
+    private(set) var registrationState: RegistrationState
+    var isErrorPresented: Bool = false
+    var errorMessage: String = ""
 
     private let wearables: WearablesInterface
-    private var registrationTask: Task<Void, Never>?
-    private var deviceStreamTask: Task<Void, Never>?
+    @ObservationIgnored private var registrationTask: Task<Void, Never>?
+    @ObservationIgnored private var deviceStreamTask: Task<Void, Never>?
 
     init(wearables: WearablesInterface) {
         self.wearables = wearables
