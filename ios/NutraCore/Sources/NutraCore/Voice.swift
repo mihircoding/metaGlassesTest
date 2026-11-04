@@ -60,12 +60,8 @@ public enum SpokenText {
 
     public static func scanResult(itemNames: [String], total: Nutrients, lowConfidence: Bool,
                                   verdict: Verdict, conditionName: String?) -> String {
-        let what: String
-        if lowConfidence {
-            what = "I think this is " + (itemNames.count == 1 ? itemNames[0] : "\(itemNames.count) items")
-        } else {
-            what = itemNames.joined(separator: ", ")
-        }
+        let label = itemNames.count == 1 ? itemNames[0] : "\(itemNames.count) items"
+        let what = lowConfidence ? "I think this is " + label : label
         var s = "\(what), about \(n(total.kcal)) calories and \(n(total.proteinG)) grams of protein. \(verdict.level.rawValue)"
         if var name = conditionName {
             if name.hasSuffix(")"), let open = name.range(of: " (", options: .backwards) {
