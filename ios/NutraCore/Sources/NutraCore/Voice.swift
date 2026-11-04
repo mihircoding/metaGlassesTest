@@ -74,7 +74,7 @@ public enum SpokenText {
             s += " for your \(name) plan"
         }
         if let r = verdict.reasons.first?.text, let f = r.first {
-            s += ": " + f.lowercased() + r.dropFirst()
+            s += ": " + String(f).lowercased() + String(r.dropFirst())
         }
         return s + ". Say add it or skip."
     }
