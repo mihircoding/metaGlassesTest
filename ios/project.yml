@@ -2,7 +2,7 @@ name: NutraVision
 options:
   bundleIdPrefix: com.nutravision
   deploymentTarget:
-    iOS: "17.0"
+    iOS: "17.2"
 packages:
   Supabase:
     url: https://github.com/supabase/supabase-swift

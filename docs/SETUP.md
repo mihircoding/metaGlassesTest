@@ -23,3 +23,4 @@
 9. **Signing and Meta.** In Xcode set the signing team; set `MetaAppID` in `ios/NutraVision/Info.plist`
    to your Meta App ID. In the Meta AI app, enable Developer Mode for the glasses.
 10. **Run** on a physical iPhone (the camera, Bluetooth and glasses need real hardware).
+    The iPhone needs iOS 17.2 or later (the Meta Wearables DAT SDK 1.0 minimum).
