@@ -3,7 +3,7 @@ import Foundation
 public enum KeywordFlag: Sendable {
   case gluten, highFodmap, pregnancyAvoid
 
-  // ponytail: keyword match on the food name - misses unnamed ingredients.
+  // ponytail: word-start keyword match — misses unnamed ingredients and fused compounds like "wholewheat".
   public var keywords: [String] {
     switch self {
     case .gluten:
@@ -20,7 +20,15 @@ public enum KeywordFlag: Sendable {
 
   public func matches(_ foodName: String) -> Bool {
     let n = foodName.lowercased()
-    return keywords.contains { n.contains($0) }
+    if self == .gluten && (n.contains("gluten-free") || n.contains("gluten free")) { return false }
+    let words = n.split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+    return keywords.contains { keyword in
+      let kw = keyword.split(separator: " ")
+      guard !kw.isEmpty, words.count >= kw.count else { return false }
+      return (0...(words.count - kw.count)).contains { i in
+        kw.indices.allSatisfy { j in words[i + j].hasPrefix(kw[j]) }
+      }
+    }
   }
 }
 

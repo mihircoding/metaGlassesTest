@@ -27,6 +27,12 @@ final class ConditionCatalogTests: XCTestCase {
     XCTAssertTrue(KeywordFlag.pregnancyAvoid.matches("Salmon sashimi"))
     XCTAssertTrue(KeywordFlag.highFodmap.matches("garlic naan"))
     XCTAssertEqual(ConditionCatalog.condition(id: "celiac").flag, .gluten)
+    XCTAssertFalse(KeywordFlag.pregnancyAvoid.matches("Strawberries"))
+    XCTAssertFalse(KeywordFlag.gluten.matches("Buckwheat pancakes"))
+    XCTAssertFalse(KeywordFlag.gluten.matches("Gluten-free bread"))
+    XCTAssertTrue(KeywordFlag.gluten.matches("Rice noodles"))   // documented false positive kept: "noodle" is on the spec list
+    XCTAssertTrue(KeywordFlag.highFodmap.matches("Vanilla ice cream"))
+    XCTAssertTrue(KeywordFlag.pregnancyAvoid.matches("King mackerel steak"))
   }
   func testPlanItemFlatJSON() throws {
     let item = try JSONDecoder().decode(PlanItem.self, from: #"{"name":"Oats","serving_desc":"1 cup","serving_grams":80,"kcal":300,"protein_g":10,"carbs_g":54,"fat_g":5,"sat_fat_g":1,"sodium_mg":5,"fiber_g":8,"sugar_g":1}"#.data(using: .utf8)!)
