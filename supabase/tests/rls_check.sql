@@ -21,6 +21,9 @@ do $$ begin
   begin update profiles set role = 'doctor' where id = auth.uid(); exception when others then return; end;
   raise exception 'RLS check failed: role change allowed'; end $$;
 do $$ begin
+  begin update profiles set email = 'rls-stranger@test.local' where id = auth.uid(); exception when others then return; end;
+  raise exception 'RLS check failed: email change allowed'; end $$;
+do $$ begin
   begin insert into care_links (doctor_id, patient_id, status) values ('d1000000-0000-4000-8000-000000000002', auth.uid(), 'accepted');
   exception when others then return; end;
   raise exception 'RLS check failed: patient inserted a link'; end $$;

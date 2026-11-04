@@ -2,7 +2,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test supabase/tests/sql.test.mjs"
+    "test": "node --test \"supabase/functions/tests/*.test.ts\" supabase/tests/sql.test.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.10"

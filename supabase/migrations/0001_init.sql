@@ -165,6 +165,7 @@ create function lock_role() returns trigger
 language plpgsql set search_path = public as $$
 begin
   if new.role <> old.role then raise exception 'Role cannot be changed'; end if;
+  if new.email is distinct from old.email then raise exception 'Email cannot be changed'; end if;
   return new;
 end $$;
 
@@ -188,8 +189,8 @@ begin
   if not exists (select 1 from profiles where id = auth.uid() and role = 'doctor') then
     raise exception 'Only doctors can send requests';
   end if;
-  select id into pid from profiles
-   where email = lower(trim(request_patient.patient_email)) and role = 'patient';
+  select p.id into pid from profiles p join auth.users u on u.id = p.id
+   where lower(u.email) = lower(trim(request_patient.patient_email)) and p.role = 'patient';
   if pid is null then raise exception 'No patient with that email'; end if;
 
   -- an accepted link is left alone; declined/revoked/pending are reset to pending
