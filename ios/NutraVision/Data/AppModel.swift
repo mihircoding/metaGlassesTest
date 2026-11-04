@@ -54,6 +54,7 @@ final class AppModel {
     private func load(userId: UUID) async {
         do {
             let profile = try await Backend.shared.profile(id: userId)
+            banner = nil
             self.profile = profile
             guard profile.role == .patient else {
                 today = nil
