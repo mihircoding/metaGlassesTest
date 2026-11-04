@@ -33,7 +33,7 @@ struct DiaryView: View {
     }
 
     private var targets: Targets { app.targets }
-    private var remaining: Double { targets.kcal - day.consumed.kcal + day.exerciseKcal }
+    private var remaining: Double { app.goalKcal(for: day) - day.consumed.kcal }
 
     var body: some View {
         List {
@@ -94,7 +94,7 @@ struct DiaryView: View {
             Text("−")
             term(day.consumed.kcal, "Food")
             Text("+")
-            term(day.exerciseKcal, "Exercise")
+            term(app.countedExerciseKcal(for: day), "Exercise")
             Text("=")
             term(remaining, "Remaining").foregroundStyle(remaining < 0 ? Theme.bad : Theme.accent)
         }
@@ -138,7 +138,7 @@ struct DiaryView: View {
     private func logRow(_ row: FoodLogRow) -> some View {
         // consumed = .zero: each food is judged on its own, for speed (colour only).
         let verdict = HealthVerdict.evaluate(name: row.name, item: row.total, targets: targets,
-                                             dailyGoalKcal: app.dailyGoalKcal, consumed: .zero,
+                                             dailyGoalKcal: app.goalKcal(for: day), consumed: .zero,
                                              conditionIds: app.profile?.conditions ?? [])
         return HStack {
             Circle().fill(verdict.level.color).frame(width: 10, height: 10).accessibilityHidden(true)

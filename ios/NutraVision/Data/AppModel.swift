@@ -21,9 +21,15 @@ final class AppModel {
     var targets: Targets { profile?.targets ?? .defaults }
 
     /// The calorie target, plus today's exercise when the profile adds it back.
-    var dailyGoalKcal: Double {
-        targets.kcal + (profile?.addExerciseKcal == true ? (today?.exerciseKcal ?? 0) : 0)
+    var dailyGoalKcal: Double { goalKcal(for: today) }
+
+    /// Exercise kcal that count toward the goal for `day`: zero unless the profile adds exercise back.
+    func countedExerciseKcal(for day: DayModel?) -> Double {
+        profile?.addExerciseKcal == true ? (day?.exerciseKcal ?? 0) : 0
     }
+
+    /// The one goal definition: kcal target plus that day's counted exercise.
+    func goalKcal(for day: DayModel?) -> Double { targets.kcal + countedExerciseKcal(for: day) }
 
     /// Follows the auth state for the app's lifetime; call once from the root view's `.task`.
     func start() async {

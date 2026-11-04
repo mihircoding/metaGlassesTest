@@ -9,7 +9,8 @@ struct DashboardView: View {
 
     private var consumed: Nutrients { app.today?.consumed ?? .zero }
     private var exercise: Double { app.today?.exerciseKcal ?? 0 }
-    private var remaining: Double { app.targets.kcal - consumed.kcal + exercise }
+    private var goal: Double { app.goalKcal(for: app.today) }
+    private var remaining: Double { goal - consumed.kcal }
 
     var body: some View {
         NavigationStack {
@@ -46,7 +47,7 @@ struct DashboardView: View {
     }
 
     private var ring: some View {
-        let fraction = app.targets.kcal > 0 ? min(max(consumed.kcal / app.targets.kcal, 0), 1) : 0
+        let fraction = goal > 0 ? min(max(consumed.kcal / goal, 0), 1) : 0
         return ZStack {
             Circle().stroke(Color.secondary.opacity(0.2), lineWidth: 16)
             Circle().trim(from: 0, to: fraction)
