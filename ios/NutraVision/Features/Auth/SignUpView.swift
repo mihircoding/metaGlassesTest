@@ -56,22 +56,15 @@ struct SignUpView: View {
         busy = true
         error = nil
         notice = nil
+        if role == .doctor { app.pendingDoctorCredentials = .init(specialty: specialty, license: license) }
         do {
             try await Backend.shared.signUp(email: email.trimmingCharacters(in: .whitespaces), password: password,
                                             fullName: fullName.trimmingCharacters(in: .whitespaces), role: role)
-            guard let userId = Backend.shared.userId else {
+            if Backend.shared.userId == nil {
                 notice = "Check your email to confirm your account, then sign in."
-                busy = false
-                return
-            }
-            if role == .doctor {
-                // The profiles row comes from a DB trigger; fill in the credentials now that we are signed in.
-                var profile = try await Backend.shared.profile(id: userId)
-                profile.specialty = specialty
-                profile.licenseNumber = license
-                try await app.saveProfile(profile)
             }
         } catch {
+            app.pendingDoctorCredentials = nil
             self.error = error.localizedDescription
         }
         busy = false

@@ -14,6 +14,10 @@ final class AppModel {
     var today: DayModel?
     var banner: String?
 
+    struct DoctorCredentials { var specialty: String; var license: String }
+    /// Set by sign-up before the account exists; written to the doctor profile on first load (retried by refresh()).
+    var pendingDoctorCredentials: DoctorCredentials?
+
     var targets: Targets { profile?.targets ?? .defaults }
 
     /// The calorie target, plus today's exercise when the profile adds it back.
@@ -53,7 +57,13 @@ final class AppModel {
 
     private func load(userId: UUID) async {
         do {
-            let profile = try await Backend.shared.profile(id: userId)
+            var profile = try await Backend.shared.profile(id: userId)
+            if profile.role == .doctor, let creds = pendingDoctorCredentials {
+                profile.specialty = creds.specialty
+                profile.licenseNumber = creds.license
+                try await Backend.shared.updateProfile(profile)
+                pendingDoctorCredentials = nil
+            }
             banner = nil
             self.profile = profile
             guard profile.role == .patient else {
