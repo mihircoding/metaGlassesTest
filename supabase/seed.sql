@@ -38,7 +38,7 @@ update profiles set birth_date = '1971-08-20', sex = 'male', height_cm = 178, we
   kcal_target = 1930, protein_g = 87, carbs_g = 265, fat_g = 58, sat_fat_g = 13, sodium_mg = 1500, fiber_g = 30
  where id = 'a0000000-0000-4000-8000-000000000003';
 
--- Alex: M, 1999-06-10 (27), 180 cm, 79 kg, very, +0.25 kg/wk -> 1780*1.725+275 = 3345.5 -> 3350 kcal
+-- Alex: M, 1999-06-10 (27), 180 cm, 79 kg, very, +0.25 kg/wk -> 1785*1.725+275 = 3354.1 -> 3350 kcal
 update profiles set birth_date = '1999-06-10', sex = 'male', height_cm = 180, weight_kg = 79, activity = 'very',
   conditions = '{bodybuilding}', goal_weight_kg = 84, weekly_rate_kg = 0.25,
   kcal_target = 3350, protein_g = 251, carbs_g = 377, fat_g = 93, sat_fat_g = 37, sodium_mg = 2300, fiber_g = 30
