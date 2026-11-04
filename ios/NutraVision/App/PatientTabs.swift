@@ -13,13 +13,30 @@ struct PlaceholderScreen: View {
 }
 
 struct PatientTabs: View {
+    @Environment(AppModel.self) private var app
+    private enum Tab: Hashable { case dashboard, diary, add, progress, more }
+    @State private var selection = Tab.dashboard
+    @State private var showPlus = false
+
     var body: some View {
-        TabView {
-            PlaceholderScreen(title: "Dashboard").tabItem { Label("Dashboard", systemImage: "house") }
-            PlaceholderScreen(title: "Diary").tabItem { Label("Diary", systemImage: "book") }
-            PlaceholderScreen(title: "Add").tabItem { Label("Add", systemImage: "plus.circle.fill") }
-            PlaceholderScreen(title: "Progress").tabItem { Label("Progress", systemImage: "chart.line.uptrend.xyaxis") }
-            MoreView().tabItem { Label("More", systemImage: "ellipsis") }
+        TabView(selection: $selection) {
+            DashboardView().tag(Tab.dashboard).tabItem { Label("Dashboard", systemImage: "house") }
+            NavigationStack {
+                if let id = app.profile?.id { DiaryView(userId: id, readOnly: false) } else { ProgressView() }
+            }
+            .tag(Tab.diary).tabItem { Label("Diary", systemImage: "book") }
+            Color.clear.tag(Tab.add).tabItem { Label("Add", systemImage: "plus.circle.fill") }
+            PlaceholderScreen(title: "Progress").tag(Tab.progress)
+                .tabItem { Label("Progress", systemImage: "chart.line.uptrend.xyaxis") }
+            MoreView().tag(Tab.more).tabItem { Label("More", systemImage: "ellipsis") }
         }
+        // The plus tab is an action, not a screen: bounce back to the previous tab and open the sheet.
+        .onChange(of: selection) { old, new in
+            if new == .add {
+                selection = old
+                showPlus = true
+            }
+        }
+        .sheet(isPresented: $showPlus) { PlusSheet() }
     }
 }
