@@ -11,6 +11,8 @@ protocol CameraSource: AnyObject {
     var latestFrame: UIImage? { get }
     /// Food barcode payloads (EAN-8/13, UPC-E, Code 128), on the main actor. A code held in view is reported once.
     var onBarcode: ((String) -> Void)? { get set }
+    /// Throws `CancellationError` if `stop()` is called before it finishes (a user cancel, not a failure:
+    /// ignore it). A second call while starting or running does nothing.
     func start() async throws
     func stop()
     /// A full-size still, or nil when the camera isn't running.
@@ -33,17 +35,14 @@ enum CameraSourceError: LocalizedError {
     }
 }
 
-/// A payload is new unless the same one was seen in the last 5 s. Every sighting restarts the 5 s,
-/// so a code that stays in view is reported once instead of again every 5 s.
+/// A payload is new unless it was seen in the last 5 s. Every sighting restarts its 5 s, so each code in view
+/// is reported once, even with several in frame (detection order isn't stable, so one "last payload" isn't enough).
 struct BarcodeDebounce {
-    private var lastPayload: String?
-    private var lastSeen = Date.distantPast
+    private var lastSeen: [String: Date] = [:]
 
     mutating func isNew(_ payload: String, at now: Date = Date()) -> Bool {
-        defer {
-            lastPayload = payload
-            lastSeen = now
-        }
-        return payload != lastPayload || now.timeIntervalSince(lastSeen) >= 5
+        lastSeen = lastSeen.filter { now.timeIntervalSince($0.value) < 5 }  // forget stale codes; stays small
+        defer { lastSeen[payload] = now }
+        return lastSeen[payload] == nil
     }
 }

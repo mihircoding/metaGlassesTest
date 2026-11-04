@@ -24,6 +24,9 @@ final class GlassesSession: CameraSource {
     private var session: DeviceSession? = nil
     private var camera: MWDATCamera.Camera? = nil
     private var isLive = false
+    private var isStarting = false
+    /// Bumped by stop(); a start() that sees it change after an await has been cancelled.
+    private var generation = 0
     private var streamWasUp = false
     private var visionBusy = false
     private var lastVisionAt = Date.distantPast
@@ -32,14 +35,19 @@ final class GlassesSession: CameraSource {
     private var photoTimeout: Task<Void, Never>? = nil
 
     func start() async throws {
-        guard session == nil else { return }
+        guard session == nil, !isStarting else { return }  // already running or starting
+        isStarting = true
+        let ticket = generation
+        defer { if ticket == generation { isStarting = false } }  // after stop(), a newer start() may own the flag
         let wearables = Wearables.shared
         guard wearables.registrationState == .registered else { throw CameraSourceError.glassesNotConnected }
 
         // The check throws when no glasses are on the link, so an error means "not connected", not "denied".
         var permission = try? await wearables.checkPermissionStatus(.camera)
+        guard ticket == generation else { throw CancellationError() }
         if permission == .denied {
             permission = try? await wearables.requestPermission(.camera)  // switches to Meta AI and back
+            guard ticket == generation else { throw CancellationError() }
         }
         guard permission != nil else { throw CameraSourceError.glassesNotConnected }
         guard permission == .granted else { throw CameraSourceError.glassesCameraDenied }
@@ -59,15 +67,14 @@ final class GlassesSession: CameraSource {
             throw CameraSourceError.glassesNotConnected
         }
 
-        // addCamera needs a started session. A failed start ends in .stopped; stop() during the wait clears `session`.
+        // addCamera needs a started session; a failed start ends in .stopped.
         let deadline = Date().addingTimeInterval(15)
-        while newSession.state != .started, newSession.state != .stopped, session != nil, Date() < deadline {
+        while newSession.state != .started, newSession.state != .stopped, ticket == generation, Date() < deadline {
             try? await Task.sleep(for: .milliseconds(100))
         }
+        guard ticket == generation else { throw CancellationError() }  // stop() already ended newSession
         let config = StreamConfiguration(videoCodec: .raw, resolution: .low, frameRate: 15)
-        guard newSession.state == .started, session != nil,
-              let newCamera = try? newSession.addCamera(config: config)
-        else {
+        guard newSession.state == .started, let newCamera = try? newSession.addCamera(config: config) else {
             stop()
             throw CameraSourceError.glassesNotConnected
         }
@@ -94,6 +101,8 @@ final class GlassesSession: CameraSource {
     }
 
     func stop() {
+        generation += 1  // cancels a start() in progress
+        isStarting = false
         isLive = false
         streamWasUp = false
         tokens.clear()

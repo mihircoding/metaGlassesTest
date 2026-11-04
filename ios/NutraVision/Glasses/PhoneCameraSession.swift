@@ -23,11 +23,19 @@ final class PhoneCameraSession: NSObject, CameraSource {
     private let photoOutput = AVCapturePhotoOutput()
     private let metadataOutput = AVCaptureMetadataOutput()
     private var isConfigured = false
+    private var isStarting = false
+    /// Bumped by stop(); a start() that sees it change after an await has been cancelled.
+    private var generation = 0
     private var barcodes = BarcodeDebounce()
     private var photoWaiter: CheckedContinuation<UIImage?, Never>?
 
     func start() async throws {
+        guard !isStarting else { return }  // a first-run start is still configuring
+        isStarting = true
+        let ticket = generation
+        defer { if ticket == generation { isStarting = false } }
         if !isConfigured { try await configure() }
+        guard ticket == generation else { throw CancellationError() }  // stopped during the permission prompt
         let session = self.session
         await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
             Self.queue.async {
@@ -35,9 +43,13 @@ final class PhoneCameraSession: NSObject, CameraSource {
                 done.resume()
             }
         }
+        // A stop() during startRunning queued stopRunning behind it, so the camera ends up stopped.
+        guard ticket == generation else { throw CancellationError() }
     }
 
     func stop() {
+        generation += 1  // cancels a start() in progress
+        isStarting = false
         let session = self.session
         Self.queue.async { session.stopRunning() }
         finishCapture(nil)
