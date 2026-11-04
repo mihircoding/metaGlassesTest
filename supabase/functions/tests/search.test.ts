@@ -2,21 +2,12 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { handleFoodSearch } from "../_shared/search.ts";
+import { fakeFetch } from "./helpers.ts";
 
 const fx = (name: string) => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8"));
 const textFx = fx("fdc_search_text.json");
 const barcodeFx = fx("fdc_search_barcode.json");
 const offFx = fx("off_product.json");
-
-// Routes match by URL substring; first match wins.
-function fakeFetch(routes: { match: string; body: unknown; status?: number }[]): typeof fetch {
-  return (async (input: string | URL | Request) => {
-    const url = String(input);
-    const r = routes.find((x) => url.includes(x.match));
-    if (!r) throw new Error(`unrouted ${url}`);
-    return new Response(JSON.stringify(r.body), { status: r.status ?? 200 });
-  }) as typeof fetch;
-}
 
 const call = (init: RequestInit, routes: Parameters<typeof fakeFetch>[0]) =>
   handleFoodSearch(new Request("http://x/food-search", init), { fdcKey: "k", fetchFn: fakeFetch(routes) });
