@@ -1,7 +1,8 @@
 import NutraCore
 import SwiftUI
 
-/// The ＋ tab's quick-add sheet.struct PlusSheet: View {
+/// The ＋ tab's quick-add sheet.
+struct PlusSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var glassesMode: GlassesSource?
     @State private var showPhoto = false
