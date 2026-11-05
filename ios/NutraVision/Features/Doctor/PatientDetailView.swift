@@ -62,6 +62,7 @@ private struct PatientBodyList: View {
                 ForEach(weights.reversed()) { w in
                     HStack {
                         Text(w.measuredAt, format: .dateTime.month().day().year())
+                        if w.source == .healthkit { HealthHeart() }
                         Spacer()
                         Text("\(w.weightKg.formatted(.number.precision(.fractionLength(1)))) kg").foregroundStyle(.secondary)
                     }
@@ -72,7 +73,10 @@ private struct PatientBodyList: View {
                 ForEach(workouts.reversed()) { w in
                     HStack {
                         VStack(alignment: .leading) {
-                            Text(w.kind.title)
+                            HStack(spacing: 4) {
+                                Text(w.kind.title)
+                                if w.source == .healthkit { HealthHeart() }
+                            }
                             Text(w.startedAt, format: .dateTime.month().day().year())
                                 .font(.footnote).foregroundStyle(.secondary)
                         }

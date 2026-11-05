@@ -10,15 +10,29 @@ import Observation
 final class HealthSync {
     static let shared = HealthSync()
 
-    private static let requestedKey = "hk.requested"
-    private static let workoutsAnchorKey = "hk.anchor.workouts"
-    private static let bodyMassAnchorKey = "hk.anchor.bodyMass"
+    private static let requestedPrefix = "hk.requested."
+    private static let workoutsAnchorPrefix = "hk.anchor.workouts."
+    private static let bodyMassAnchorPrefix = "hk.anchor.bodyMass."
 
     @ObservationIgnored private let store = HKHealthStore()
     @ObservationIgnored private var importing = false
 
-    /// HealthKit never reveals whether read access was granted, so "authorized" means the request sheet completed.
-    private(set) var isAuthorized: Bool = UserDefaults.standard.bool(forKey: "hk.requested")
+    /// Bumped when the stored flag changes so views re-read `requested` and `isAuthorized`.
+    private var requestTick = 0
+
+    private var requestedKey: String? { Backend.shared.userId.map { Self.requestedPrefix + $0.uuidString } }
+
+    /// The request sheet has completed for the signed-in user (per user, so a new account must opt in).
+    var requested: Bool {
+        _ = requestTick
+        return requestedKey.map { UserDefaults.standard.bool(forKey: $0) } ?? false
+    }
+
+    /// Requested, and the user did not tap "Don't Allow" (HealthKit hides read access, so write status is the proxy).
+    var isAuthorized: Bool {
+        Self.isAvailable && requested
+            && store.authorizationStatus(for: HKQuantityType(.dietaryEnergyConsumed)) == .sharingAuthorized
+    }
 
     nonisolated static var isAvailable: Bool { HKHealthStore.isHealthDataAvailable() }
 
@@ -39,8 +53,8 @@ final class HealthSync {
     func requestAccess() async throws {
         guard Self.isAvailable else { return }
         try await store.requestAuthorization(toShare: shareTypes, read: readTypes)
-        UserDefaults.standard.set(true, forKey: Self.requestedKey)
-        isAuthorized = true
+        if let key = requestedKey { UserDefaults.standard.set(true, forKey: key) }
+        requestTick += 1
     }
 
     // MARK: Import
@@ -55,7 +69,7 @@ final class HealthSync {
     }
 
     private func importWorkouts(userId: UUID) async throws {
-        let query = HKAnchoredObjectQueryDescriptor(predicates: [.workout()], anchor: loadAnchor(Self.workoutsAnchorKey))
+        let query = HKAnchoredObjectQueryDescriptor(predicates: [.workout()], anchor: loadAnchor(Self.workoutsAnchorPrefix + userId.uuidString))
         let result = try await query.result(for: store)
         let rows = result.addedSamples.filter { !isOwn($0) }.map { w in
             WorkoutRow(userId: userId, startedAt: w.startDate, kind: Self.kind(for: w.workoutActivityType),
@@ -63,12 +77,12 @@ final class HealthSync {
                        source: .healthkit, healthkitUuid: w.uuid.uuidString)
         }
         try await Backend.shared.upsertWorkouts(rows)
-        saveAnchor(result.newAnchor, key: Self.workoutsAnchorKey)
+        saveAnchor(result.newAnchor, key: Self.workoutsAnchorPrefix + userId.uuidString)
     }
 
     private func importWeights(userId: UUID) async throws {
         let query = HKAnchoredObjectQueryDescriptor(predicates: [.quantitySample(type: HKQuantityType(.bodyMass))],
-                                                    anchor: loadAnchor(Self.bodyMassAnchorKey))
+                                                    anchor: loadAnchor(Self.bodyMassAnchorPrefix + userId.uuidString))
         let result = try await query.result(for: store)
         let rows = result.addedSamples.filter { !isOwn($0) }.map { s in
             WeightLogRow(userId: userId, measuredAt: s.startDate,
@@ -76,7 +90,7 @@ final class HealthSync {
                          source: .healthkit, healthkitUuid: s.uuid.uuidString)
         }
         try await Backend.shared.upsertWeights(rows)
-        saveAnchor(result.newAnchor, key: Self.bodyMassAnchorKey)
+        saveAnchor(result.newAnchor, key: Self.bodyMassAnchorPrefix + userId.uuidString)
     }
 
     /// Samples this app wrote itself (its own weights) must not come back as duplicates.

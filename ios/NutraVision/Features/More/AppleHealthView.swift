@@ -14,6 +14,8 @@ struct AppleHealthView: View {
             Section {
                 if !HealthSync.isAvailable {
                     Text("Apple Health is not available on this device.").foregroundStyle(.secondary)
+                } else if health.requested && !health.isAuthorized {
+                    Text("Not allowed — enable NutraVision in the Health app → Sharing").foregroundStyle(.secondary)
                 } else if health.isAuthorized {
                     Label("Connected", systemImage: "checkmark.circle.fill").foregroundStyle(Theme.accent)
                     Button("Sync now") { run { try await sync() } }.disabled(busy)

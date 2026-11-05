@@ -63,6 +63,7 @@ struct DiaryView: View {
                 ForEach(day.workouts) { w in
                     HStack {
                         Label(w.kind.title, systemImage: w.kind.symbol)
+                        if w.source == .healthkit { HealthHeart() }
                         Spacer()
                         Text("\(Int(w.durationMin.rounded())) min · \(Int(w.kcal.rounded())) kcal")
                             .foregroundStyle(.secondary)

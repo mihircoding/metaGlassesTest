@@ -26,3 +26,10 @@ struct VerdictBadge: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
+
+/// Marks entries imported from Apple Health.
+struct HealthHeart: View {
+    var body: some View {
+        Image(systemName: "heart.fill").foregroundStyle(.pink).accessibilityLabel("From Apple Health")
+    }
+}
