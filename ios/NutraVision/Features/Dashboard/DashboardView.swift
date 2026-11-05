@@ -7,6 +7,7 @@ struct DashboardView: View {
     @State private var weights: [WeightLogRow] = []
     @State private var weightError: String?
     @State private var glassesMode: GlassesSource?
+    @State private var careTeam = CareTeamModel()
 
     private var consumed: Nutrients { app.today?.consumed ?? .zero }
     private var exercise: Double { app.today?.exerciseKcal ?? 0 }
@@ -17,6 +18,20 @@ struct DashboardView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
+                    if let text = careTeam.bannerText {
+                        NavigationLink { CareTeamView() } label: {
+                            HStack {
+                                Image(systemName: "person.2.fill")
+                                Text(text).font(.subheadline.weight(.semibold)).multilineTextAlignment(.leading)
+                                Spacer()
+                                Image(systemName: "chevron.right").font(.caption)
+                            }
+                            .foregroundStyle(.white)
+                            .padding(12)
+                            .background(Theme.accent2, in: RoundedRectangle(cornerRadius: 12))
+                        }
+                        .buttonStyle(.plain)
+                    }
                     ring
                     Menu {
                         Button("Meta glasses", systemImage: "eyeglasses") { glassesMode = .glasses }
@@ -41,6 +56,7 @@ struct DashboardView: View {
             }
             .navigationTitle("Dashboard")
             .task { await loadWeights() }
+            .onAppear { Task { await careTeam.load() } }  // reload when returning from Care Team
             .fullScreenCover(item: $glassesMode) { mode in GlassesModeView(useGlasses: mode == .glasses) }
         }
     }

@@ -3,6 +3,7 @@ import SwiftUI
 struct MoreView: View {
     @Environment(AppModel.self) private var app
     @State private var error: String?
+    @State private var careTeam = CareTeamModel()
 
     var body: some View {
         NavigationStack {
@@ -17,6 +18,20 @@ struct MoreView: View {
                     if profile.role == .patient {
                         Section {
                             NavigationLink("Profile & Goals") { ProfileGoalsView(profile: profile) }
+                            NavigationLink {
+                                CareTeamView()
+                            } label: {
+                                HStack {
+                                    Text("Care Team")
+                                    Spacer()
+                                    if careTeam.pendingCount > 0 {
+                                        Text("\(careTeam.pendingCount)").font(.caption.bold()).foregroundStyle(.white)
+                                            .padding(.horizontal, 7).padding(.vertical, 2)
+                                            .background(Theme.bad, in: Capsule())
+                                            .accessibilityLabel("\(careTeam.pendingCount) pending")
+                                    }
+                                }
+                            }
                             NavigationLink("Glasses") { GlassesSettingsView() }
                         }
                     }
@@ -35,6 +50,7 @@ struct MoreView: View {
                 }
             }
             .navigationTitle("More")
+            .onAppear { Task { await careTeam.load() } }  // reload when returning from Care Team
         }
     }
 }
