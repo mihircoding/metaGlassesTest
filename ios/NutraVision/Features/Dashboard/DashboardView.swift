@@ -6,8 +6,7 @@ struct DashboardView: View {
     @Environment(AppModel.self) private var app
     @State private var weights: [WeightLogRow] = []
     @State private var weightError: String?
-    @State private var showGlassesMode = false
-    @State private var useGlasses = true
+    @State private var glassesMode: GlassesSource?
 
     private var consumed: Nutrients { app.today?.consumed ?? .zero }
     private var exercise: Double { app.today?.exerciseKcal ?? 0 }
@@ -20,8 +19,8 @@ struct DashboardView: View {
                 VStack(spacing: 16) {
                     ring
                     Menu {
-                        Button("Meta glasses", systemImage: "eyeglasses") { useGlasses = true; showGlassesMode = true }
-                        Button("Phone camera", systemImage: "iphone") { useGlasses = false; showGlassesMode = true }
+                        Button("Meta glasses", systemImage: "eyeglasses") { glassesMode = .glasses }
+                        Button("Phone camera", systemImage: "iphone") { glassesMode = .phone }
                     } label: {
                         Label("Glasses Mode", systemImage: "eyeglasses").font(.headline).frame(maxWidth: .infinity)
                     }
@@ -42,7 +41,7 @@ struct DashboardView: View {
             }
             .navigationTitle("Dashboard")
             .task { await loadWeights() }
-            .fullScreenCover(isPresented: $showGlassesMode) { GlassesModeView(useGlasses: useGlasses) }
+            .fullScreenCover(item: $glassesMode) { mode in GlassesModeView(useGlasses: mode == .glasses) }
         }
     }
 

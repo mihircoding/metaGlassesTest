@@ -3,6 +3,14 @@ import NutraCore
 import SwiftUI
 import UIKit
 
+/// The camera picked for Glasses Mode. Entry points present `fullScreenCover(item:)` with it, so the cover always
+/// sees the choice just made (an `isPresented` cover can read a stale `useGlasses` on first presentation).
+enum GlassesSource: String, Identifiable {
+    case glasses, phone
+
+    var id: String { rawValue }
+}
+
 /// Full-screen hands-free scanning through Meta glasses, or the phone camera when `useGlasses` is false: live
 /// picture, voice commands and spoken results. Buttons go through `VoiceLoop.handle`, the same path as voice.
 struct GlassesModeView: View {
@@ -68,23 +76,33 @@ private struct GlassesModeScreen: View {
 
             if !loop.pending.isEmpty {
                 ScrollView {
-                    ScanResultCard(items: $loop.pending, onAdd: { loop.handle(.add($0)) },
-                                   onSkip: { loop.handle(.skip) })
+                    ScanResultCard(items: $loop.pending, meal: $loop.selectedMeal,
+                                   onAdd: { loop.handle(.add($0)) }, onSkip: { loop.handle(.skip) })
                 }
                 .frame(maxHeight: 340)
                 .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16))
             }
 
-            Button { loop.handle(.scan) } label: {
-                Label("Scan", systemImage: "viewfinder")
-                    .font(.title2.bold())
-                    .frame(maxWidth: .infinity, minHeight: 48)
+            // Fixed below the scroll area, so Add and Skip are always in reach.
+            HStack(spacing: 10) {
+                if !loop.pending.isEmpty {
+                    Button { loop.handle(.skip) } label: { big("Skip") }
+                        .buttonStyle(.bordered)
+                    Button { loop.handle(.add(loop.selectedMeal)) } label: { big("Add") }
+                        .buttonStyle(.borderedProminent)
+                        .tint(Theme.accent)
+                }
+                Button { loop.handle(.scan) } label: { big("Scan") }
+                    .buttonStyle(.borderedProminent)
+                    .tint(loop.pending.isEmpty ? Theme.accent : Theme.accent2)
+                    .disabled(!loop.isRunning || loop.state == .analyzing)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(Theme.accent)
-            .disabled(!loop.isRunning || loop.state == .analyzing)
         }
         .padding()
+    }
+
+    private func big(_ title: String) -> some View {
+        Text(title).font(.title3.bold()).frame(maxWidth: .infinity, minHeight: 48)
     }
 
     @ViewBuilder private var camera: some View {

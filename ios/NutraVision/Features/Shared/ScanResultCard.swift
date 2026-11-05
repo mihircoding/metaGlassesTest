@@ -5,10 +5,13 @@ import SwiftUI
 struct ScanResultCard: View {
     @Environment(AppModel.self) private var app
     @Binding var items: [AnalyzedItem]
+    /// The meal picker's selection, for a caller with its own Add button; otherwise the card keeps it.
+    var meal: Binding<Meal>? = nil
     let onAdd: (Meal) -> Void
     let onSkip: () -> Void
-    @State private var meal = MealSlot.meal(at: Date())
+    @State private var ownMeal = MealSlot.meal(at: Date())
 
+    private var selectedMeal: Binding<Meal> { meal ?? $ownMeal }
     private var total: Nutrients { items.map(\.nutrients).sum() }
 
     var body: some View {
@@ -25,12 +28,12 @@ struct ScanResultCard: View {
             Text("P \(Int(total.proteinG.rounded())) g · C \(Int(total.carbsG.rounded())) g · F \(Int(total.fatG.rounded())) g")
                 .font(.footnote).foregroundStyle(.secondary)
             VerdictBadge(verdict: app.verdict(name: items.map(\.name).joined(separator: ", "), item: total))
-            Picker("Meal", selection: $meal) {
+            Picker("Meal", selection: selectedMeal) {
                 ForEach(Meal.allCases, id: \.self) { Text($0.title).tag($0) }
             }
             HStack {
                 Button("Skip", role: .cancel, action: onSkip).buttonStyle(.bordered)
-                Button { onAdd(meal) } label: { Text("Add").frame(maxWidth: .infinity) }
+                Button { onAdd(selectedMeal.wrappedValue) } label: { Text("Add").frame(maxWidth: .infinity) }
                     .buttonStyle(.borderedProminent).tint(Theme.accent)
                     .disabled(items.isEmpty)
             }

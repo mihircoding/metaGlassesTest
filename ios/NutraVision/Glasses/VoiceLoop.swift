@@ -22,6 +22,8 @@ final class VoiceLoop: NSObject, AVSpeechSynthesizerDelegate {
     private(set) var isRunning = false
     /// The scan waiting for "add it" or "skip". ScanResultCard edits its grams through a binding.
     var pending: [AnalyzedItem] = []
+    /// The card's meal picker; on-screen Add uses it. Reset to the time-of-day meal for each scan.
+    var selectedMeal: Meal = MealSlot.meal(at: Date())
     private(set) var pendingSource: FoodSource = .glassesAI
     /// The spoken verdict; the card computes its own as grams change.
     private(set) var verdict: Verdict?
@@ -99,7 +101,12 @@ final class VoiceLoop: NSObject, AVSpeechSynthesizerDelegate {
         for effect in effects {
             switch effect {
             case .captureAndAnalyze: work = Task { await captureAndAnalyze() }
-            case .log(let meal): work = Task { await log(meal) }
+            case .log(let meal):
+                // Snapshot now, and keep the task out of `work`: an exit or disconnect must not empty or
+                // cancel a confirmed add.
+                let items = pending, origin = pendingSource, id = scanId, shownVerdict = verdict
+                discard()
+                Task { await log(items, origin: origin, scanId: id, verdict: shownVerdict, meal: meal) }
             case .discard: discard()
             case .speak(let text): speak(text)
             case .speakStatus: speakStatus()
@@ -186,6 +193,7 @@ final class VoiceLoop: NSObject, AVSpeechSynthesizerDelegate {
         pending = items
         pendingSource = origin
         scanId = UUID()
+        selectedMeal = MealSlot.meal(at: Date())
         let total = items.map(\.nutrients).sum()
         let verdict = app.verdict(name: items.map(\.name).joined(separator: ", "), item: total)
         self.verdict = verdict
@@ -214,28 +222,30 @@ final class VoiceLoop: NSObject, AVSpeechSynthesizerDelegate {
     }
 
     /// One row per item with a shared scan id, in `meal` or the time-of-day meal; then the new day total.
-    private func log(_ meal: Meal?) async {
-        let items = pending, origin = pendingSource, id = scanId, shownVerdict = verdict
-        discard()
-        guard let userId = Backend.shared.userId else {
-            speak(Self.saveFailed)
-            return
-        }
+    /// Runs to the end even after the screen closes: a confirmed add is saved, or its failure is reported.
+    private func log(_ items: [AnalyzedItem], origin: FoodSource, scanId id: UUID, verdict shownVerdict: Verdict?,
+                     meal: Meal?) async {
         let slot = meal ?? MealSlot.meal(at: Date())
-        let rows = items.map {
-            FoodLogRow(analyzed: $0, userId: userId, date: Date(), meal: slot, source: origin, scanId: id)
-        }
         do {
+            guard let userId = Backend.shared.userId else { throw BackendError.message("You're signed out.") }
+            let rows = items.map {
+                FoodLogRow(analyzed: $0, userId: userId, date: Date(), meal: slot, source: origin, scanId: id)
+            }
             try await app.addLogs(rows)  // inserts, then reloads today
-            guard !Task.isCancelled, isRunning else { return }
+            guard isRunning else { return }  // closed meanwhile: saved, and nothing is spoken after exit
             speak(SpokenText.added(consumedKcal: app.today?.consumed.kcal ?? 0, goalKcal: app.dailyGoalKcal))
         } catch {
-            guard !Task.isCancelled, isRunning else { return }
+            guard isRunning else {
+                // Closed meanwhile, so nobody hears it: report it in the app-wide banner instead.
+                app.banner = "Couldn't save your Glasses Mode scan: \(error.localizedDescription)"
+                return
+            }
             if state == .idle && pending.isEmpty {  // nothing newer arrived: offer the same scan again
                 pending = items
                 pendingSource = origin
                 scanId = id
                 verdict = shownVerdict
+                selectedMeal = slot
                 state = .awaitingConfirm
                 discardAfter60s()
             }

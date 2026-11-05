@@ -4,8 +4,7 @@ import SwiftUI
 /// The ＋ tab's quick-add sheet. Exercise and weight are wired by Task 20.
 struct PlusSheet: View {
     @Environment(\.dismiss) private var dismiss
-    @State private var showGlassesMode = false
-    @State private var useGlasses = true
+    @State private var glassesMode: GlassesSource?
     @State private var showPhoto = false
     @State private var showBarcode = false
     @State private var showSearch = false
@@ -29,8 +28,8 @@ struct PlusSheet: View {
                 }
                 if lookingUp { ProgressView().frame(maxWidth: .infinity) }
                 Menu {
-                    Button("Meta glasses", systemImage: "eyeglasses") { useGlasses = true; showGlassesMode = true }
-                    Button("Phone camera", systemImage: "iphone") { useGlasses = false; showGlassesMode = true }
+                    Button("Meta glasses", systemImage: "eyeglasses") { glassesMode = .glasses }
+                    Button("Phone camera", systemImage: "iphone") { glassesMode = .phone }
                 } label: {
                     Label("Glasses Mode", systemImage: "eyeglasses")
                 }
@@ -43,8 +42,8 @@ struct PlusSheet: View {
             .navigationTitle("Add")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } } }
-            .fullScreenCover(isPresented: $showGlassesMode, onDismiss: { dismiss() }) {
-                GlassesModeView(useGlasses: useGlasses)
+            .fullScreenCover(item: $glassesMode, onDismiss: { dismiss() }) { mode in
+                GlassesModeView(useGlasses: mode == .glasses)
             }
             .sheet(isPresented: $showPhoto) {
                 PhotoScanSheet(meal: meal, date: Date(), onLogged: { dismiss() })
