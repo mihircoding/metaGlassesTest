@@ -1,13 +1,14 @@
 import NutraCore
 import SwiftUI
 
-/// The ＋ tab's quick-add sheet. Exercise and weight are wired by Task 20.
-struct PlusSheet: View {
+/// The ＋ tab's quick-add sheet.struct PlusSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var glassesMode: GlassesSource?
     @State private var showPhoto = false
     @State private var showBarcode = false
     @State private var showSearch = false
+    @State private var showExercise = false
+    @State private var showWeight = false
     @State private var scanned: FoodItem?
     @State private var lookingUp = false
     @State private var error: String?
@@ -36,8 +37,8 @@ struct PlusSheet: View {
                 Button { showPhoto = true } label: { Label("Photo scan", systemImage: "camera") }
                 Button { showBarcode = true } label: { Label("Barcode", systemImage: "barcode.viewfinder") }
                 Button { showSearch = true } label: { Label("Search food", systemImage: "magnifyingglass") }
-                soon("Log exercise", "figure.run")
-                soon("Log weight", "scalemass")
+                Button { showExercise = true } label: { Label("Log exercise", systemImage: "figure.run") }
+                Button { showWeight = true } label: { Label("Log weight", systemImage: "scalemass") }
             }
             .navigationTitle("Add")
             .navigationBarTitleDisplayMode(.inline)
@@ -54,6 +55,12 @@ struct PlusSheet: View {
             .sheet(isPresented: $showSearch) {
                 AddFoodView(meal: meal, date: Date())
             }
+            .sheet(isPresented: $showExercise) {
+                LogExerciseView(date: Date()) { dismiss() }
+            }
+            .sheet(isPresented: $showWeight) {
+                LogWeightView { dismiss() }
+            }
             .sheet(item: $scanned) { item in
                 NavigationStack {
                     FoodDetailView(item: item, meal: meal, date: Date(), source: .barcode,
@@ -62,17 +69,6 @@ struct PlusSheet: View {
                 }
             }
         }
-    }
-
-    private func soon(_ title: String, _ icon: String) -> some View {
-        HStack {
-            Label(title, systemImage: icon)
-            Spacer()
-            Text("Coming soon").font(.footnote)
-        }
-        .foregroundStyle(.secondary)
-        .accessibilityElement(children: .combine)
-        .accessibilityHint("Not available yet")
     }
 
     private func lookUp(_ code: String) async {

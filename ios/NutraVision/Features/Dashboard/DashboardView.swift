@@ -55,7 +55,7 @@ struct DashboardView: View {
                 .padding()
             }
             .navigationTitle("Dashboard")
-            .task { await loadWeights() }
+            .task(id: app.weightsVersion) { await loadWeights() }
             .onAppear { Task { await careTeam.load() } }  // reload when returning from Care Team
             .fullScreenCover(item: $glassesMode) { mode in GlassesModeView(useGlasses: mode == .glasses) }
         }

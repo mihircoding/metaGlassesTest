@@ -72,7 +72,7 @@ private struct PatientBodyList: View {
                 ForEach(workouts.reversed()) { w in
                     HStack {
                         VStack(alignment: .leading) {
-                            Text(w.kind.capitalized)
+                            Text(w.kind.title)
                             Text(w.startedAt, format: .dateTime.month().day().year())
                                 .font(.footnote).foregroundStyle(.secondary)
                         }

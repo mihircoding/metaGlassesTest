@@ -223,7 +223,7 @@ struct WorkoutRow: Codable, Identifiable, Equatable {
     var id = UUID()
     var userId: UUID
     var startedAt: Date
-    var kind: String  // running, walking, cycling, swimming, strength, hiit, yoga, other (ExerciseKind in Task 20)
+    var kind: ExerciseKind
     var durationMin: Double
     var kcal: Double
     var distanceKm: Double?

@@ -13,6 +13,8 @@ final class AppModel {
     var profile: ProfileRow?
     var today: DayModel?
     var banner: String?
+    /// Bumped when a weight is logged so the Dashboard sparkline reloads.
+    var weightsVersion = 0
 
     struct DoctorCredentials { var specialty: String; var license: String }
     /// Set by sign-up before the account exists; written to the doctor profile on first load (retried by refresh()).

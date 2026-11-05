@@ -15,6 +15,7 @@ struct DiaryView: View {
     @State private var error: String?
     @State private var addTarget: AddTarget?
     @State private var editing: FoodLogRow?
+    @State private var showExercise = false
 
     private struct AddTarget: Identifiable {
         let meal: Meal
@@ -61,11 +62,14 @@ struct DiaryView: View {
                 }
                 ForEach(day.workouts) { w in
                     HStack {
-                        Text(w.kind.capitalized)
+                        Label(w.kind.title, systemImage: w.kind.symbol)
                         Spacer()
                         Text("\(Int(w.durationMin.rounded())) min · \(Int(w.kcal.rounded())) kcal")
                             .foregroundStyle(.secondary)
                     }
+                }
+                if !readOnly {
+                    Button("Add exercise") { showExercise = true }
                 }
             }
         }
@@ -74,6 +78,9 @@ struct DiaryView: View {
         .task(id: date) { await reload() }
         .sheet(item: $addTarget, onDismiss: { Task { await reload() } }) { target in
             AddFoodView(meal: target.meal, date: date)
+        }
+        .sheet(isPresented: $showExercise) {
+            LogExerciseView(date: date) { await reload() }
         }
         .sheet(item: $editing) { row in
             EditLogSheet(row: row) { await reload() }
