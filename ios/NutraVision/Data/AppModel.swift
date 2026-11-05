@@ -72,6 +72,17 @@ final class AppModel {
     func refresh() async {
         guard let userId = Backend.shared.userId else { return }
         await load(userId: userId)
+        // Best-effort: a failed import keeps its anchors and is retried on the next refresh.
+        if profile?.role == .patient, HealthSync.shared.isAuthorized {
+            do {
+                try await HealthSync.shared.importNew(userId: userId)
+                try await today?.load()
+            } catch {
+                #if DEBUG
+                print("Health import skipped: \(error)")
+                #endif
+            }
+        }
     }
 
     private func load(userId: UUID) async {

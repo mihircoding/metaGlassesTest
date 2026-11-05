@@ -8,6 +8,8 @@ struct DashboardView: View {
     @State private var weightError: String?
     @State private var glassesMode: GlassesSource?
     @State private var careTeam = CareTeamModel()
+    @State private var steps: Int?
+    @State private var activeKcal: Double?
 
     private var consumed: Nutrients { app.today?.consumed ?? .zero }
     private var exercise: Double { app.today?.exerciseKcal ?? 0 }
@@ -49,6 +51,10 @@ struct DashboardView: View {
                         MacroCard(title: "Sat fat", value: consumed.satFatG, target: app.targets.satFatG, unit: "g", warnOver: true)
                         MacroCard(title: "Sodium", value: consumed.sodiumMg, target: app.targets.sodiumMg, unit: "mg", warnOver: true)
                         exerciseTile
+                        if HealthSync.shared.isAuthorized {
+                            healthTile("Steps", steps.map { $0.formatted() } ?? "–", "today")
+                            healthTile("Active energy", activeKcal.map { "\(Int($0.rounded())) kcal" } ?? "–", "Apple Health")
+                        }
                     }
                     weightCard
                 }
@@ -56,6 +62,8 @@ struct DashboardView: View {
             }
             .navigationTitle("Dashboard")
             .task(id: app.weightsVersion) { await loadWeights() }
+            .task(id: app.today?.consumed.kcal) { await loadHealth() }  // display only, not added to the goal
+            .onAppear { Task { await loadHealth() } }  // after connecting from More
             .onAppear { Task { await careTeam.load() } }  // reload when returning from Care Team
             .fullScreenCover(item: $glassesMode) { mode in GlassesModeView(useGlasses: mode == .glasses) }
         }
@@ -71,6 +79,23 @@ struct DashboardView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
         .accessibilityElement(children: .combine)
+    }
+
+    private func healthTile(_ title: String, _ value: String, _ caption: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title).font(.footnote).foregroundStyle(.secondary)
+            Text(value).font(.headline)
+            Text(caption).font(.caption2).foregroundStyle(.secondary)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+        .accessibilityElement(children: .combine)
+    }
+
+    private func loadHealth() async {
+        steps = await HealthSync.shared.todaySteps()
+        activeKcal = await HealthSync.shared.todayActiveKcal()
     }
 
     private var ring: some View {

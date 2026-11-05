@@ -186,6 +186,7 @@ struct DiaryView: View {
     private func delete(_ row: FoodLogRow) async {
         do {
             try await Backend.shared.deleteFoodLog(id: row.id)
+            await HealthSync.shared.remove(row.id)
             await reload()
             if userId == Backend.shared.userId { await app.refresh() }
         } catch {

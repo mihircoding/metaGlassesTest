@@ -28,6 +28,7 @@ extension AppModel {
     /// error: the rows are saved, and a retry would duplicate them.
     func addLogs(_ rows: [FoodLogRow]) async throws {
         try await Backend.shared.insertFoodLogs(rows)
+        for row in rows { await HealthSync.shared.save(row) }  // best-effort, never throws
         try? await today?.load()
     }
 

@@ -75,8 +75,10 @@ struct LogWeightView: View {
                     let all = try await Backend.shared.weights(userId: userId, from: Date(timeIntervalSince1970: 0),
                                                                to: Date().addingTimeInterval(86_400))
                     let isNewest = all.last.map { cal.startOfDay(for: date) >= cal.startOfDay(for: $0.measuredAt) } ?? true
-                    try await Backend.shared.insertWeight(WeightLogRow(userId: userId, measuredAt: date, weightKg: kg,
-                                                                       source: .manual, healthkitUuid: nil))
+                    let weightRow = WeightLogRow(userId: userId, measuredAt: date, weightKg: kg,
+                                                 source: .manual, healthkitUuid: nil)
+                    try await Backend.shared.insertWeight(weightRow)
+                    await HealthSync.shared.save(weightRow)
                     inserted = true
                     newest = isNewest
                 }

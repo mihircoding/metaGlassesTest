@@ -33,6 +33,7 @@ struct MoreView: View {
                                 }
                             }
                             NavigationLink("Glasses") { GlassesSettingsView() }
+                            NavigationLink("Apple Health") { AppleHealthView() }
                         }
                     }
                 }
