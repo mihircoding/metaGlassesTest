@@ -17,6 +17,7 @@ struct MoreView: View {
                     if profile.role == .patient {
                         Section {
                             NavigationLink("Profile & Goals") { ProfileGoalsView(profile: profile) }
+                            NavigationLink("Glasses") { GlassesSettingsView() }
                         }
                     }
                 }

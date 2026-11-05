@@ -6,6 +6,8 @@ struct DashboardView: View {
     @Environment(AppModel.self) private var app
     @State private var weights: [WeightLogRow] = []
     @State private var weightError: String?
+    @State private var showGlassesMode = false
+    @State private var useGlasses = true
 
     private var consumed: Nutrients { app.today?.consumed ?? .zero }
     private var exercise: Double { app.today?.exerciseKcal ?? 0 }
@@ -17,6 +19,15 @@ struct DashboardView: View {
             ScrollView {
                 VStack(spacing: 16) {
                     ring
+                    Menu {
+                        Button("Meta glasses", systemImage: "eyeglasses") { useGlasses = true; showGlassesMode = true }
+                        Button("Phone camera", systemImage: "iphone") { useGlasses = false; showGlassesMode = true }
+                    } label: {
+                        Label("Glasses Mode", systemImage: "eyeglasses").font(.headline).frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Theme.accent)
+                    .controlSize(.large)
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                         MacroCard(title: "Protein", value: consumed.proteinG, target: app.targets.proteinG, unit: "g")
                         MacroCard(title: "Carbs", value: consumed.carbsG, target: app.targets.carbsG, unit: "g")
@@ -31,6 +42,7 @@ struct DashboardView: View {
             }
             .navigationTitle("Dashboard")
             .task { await loadWeights() }
+            .fullScreenCover(isPresented: $showGlassesMode) { GlassesModeView(useGlasses: useGlasses) }
         }
     }
 

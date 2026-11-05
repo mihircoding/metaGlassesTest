@@ -1,9 +1,11 @@
 import NutraCore
 import SwiftUI
 
-/// The ＋ tab's quick-add sheet. Glasses, exercise and weight are wired by Tasks 17 and 20.
+/// The ＋ tab's quick-add sheet. Exercise and weight are wired by Task 20.
 struct PlusSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @State private var showGlassesMode = false
+    @State private var useGlasses = true
     @State private var showPhoto = false
     @State private var showBarcode = false
     @State private var showSearch = false
@@ -26,7 +28,12 @@ struct PlusSheet: View {
                     }
                 }
                 if lookingUp { ProgressView().frame(maxWidth: .infinity) }
-                soon("Glasses Mode", "eyeglasses")
+                Menu {
+                    Button("Meta glasses", systemImage: "eyeglasses") { useGlasses = true; showGlassesMode = true }
+                    Button("Phone camera", systemImage: "iphone") { useGlasses = false; showGlassesMode = true }
+                } label: {
+                    Label("Glasses Mode", systemImage: "eyeglasses")
+                }
                 Button { showPhoto = true } label: { Label("Photo scan", systemImage: "camera") }
                 Button { showBarcode = true } label: { Label("Barcode", systemImage: "barcode.viewfinder") }
                 Button { showSearch = true } label: { Label("Search food", systemImage: "magnifyingglass") }
@@ -36,6 +43,9 @@ struct PlusSheet: View {
             .navigationTitle("Add")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } } }
+            .fullScreenCover(isPresented: $showGlassesMode, onDismiss: { dismiss() }) {
+                GlassesModeView(useGlasses: useGlasses)
+            }
             .sheet(isPresented: $showPhoto) {
                 PhotoScanSheet(meal: meal, date: Date(), onLogged: { dismiss() })
             }
