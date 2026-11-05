@@ -25,11 +25,22 @@ final class AppModel {
 
     /// Exercise kcal that count toward the goal for `day`: zero unless the profile adds exercise back.
     func countedExerciseKcal(for day: DayModel?) -> Double {
-        profile?.addExerciseKcal == true ? (day?.exerciseKcal ?? 0) : 0
+        Self.countedExerciseKcal(addExerciseKcal: profile?.addExerciseKcal == true, day: day)
     }
 
     /// The one goal definition: kcal target plus that day's counted exercise.
-    func goalKcal(for day: DayModel?) -> Double { targets.kcal + countedExerciseKcal(for: day) }
+    func goalKcal(for day: DayModel?) -> Double {
+        Self.goalKcal(targets: targets, addExerciseKcal: profile?.addExerciseKcal == true, day: day)
+    }
+
+    static func countedExerciseKcal(addExerciseKcal: Bool, day: DayModel?) -> Double {
+        addExerciseKcal ? (day?.exerciseKcal ?? 0) : 0
+    }
+
+    /// Also used for a patient's profile in the doctor's read-only diary.
+    static func goalKcal(targets: Targets, addExerciseKcal: Bool, day: DayModel?) -> Double {
+        targets.kcal + countedExerciseKcal(addExerciseKcal: addExerciseKcal, day: day)
+    }
 
     /// Follows the auth state for the app's lifetime; call once from the root view's `.task`.
     func start() async {

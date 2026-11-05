@@ -6,6 +6,8 @@ import SwiftUI
 struct DiaryView: View {
     let userId: UUID
     let readOnly: Bool
+    /// A patient's profile when a doctor reads their diary: their targets, conditions and exercise setting apply.
+    let subject: ProfileRow?
 
     @Environment(AppModel.self) private var app
     @State private var date: Date
@@ -19,9 +21,10 @@ struct DiaryView: View {
         var id: String { meal.rawValue }
     }
 
-    init(userId: UUID, readOnly: Bool, date: Date = Date()) {
+    init(userId: UUID, readOnly: Bool, date: Date = Date(), subject: ProfileRow? = nil) {
         self.userId = userId
         self.readOnly = readOnly
+        self.subject = subject
         _date = State(initialValue: date)
         _own = State(initialValue: DayModel(userId: userId, date: date))
     }
@@ -32,8 +35,11 @@ struct DiaryView: View {
         return own
     }
 
-    private var targets: Targets { app.targets }
-    private var remaining: Double { app.goalKcal(for: day) - day.consumed.kcal }
+    private var targets: Targets { subject?.targets ?? app.targets }
+    private var addExercise: Bool { (subject ?? app.profile)?.addExerciseKcal == true }
+    private var conditionIds: [String] { (subject ?? app.profile)?.conditions ?? [] }
+    private var goal: Double { AppModel.goalKcal(targets: targets, addExerciseKcal: addExercise, day: day) }
+    private var remaining: Double { goal - day.consumed.kcal }
 
     var body: some View {
         List {
@@ -94,7 +100,7 @@ struct DiaryView: View {
             Text("−")
             term(day.consumed.kcal, "Food")
             Text("+")
-            term(app.countedExerciseKcal(for: day), "Exercise")
+            term(AppModel.countedExerciseKcal(addExerciseKcal: addExercise, day: day), "Exercise")
             Text("=")
             term(remaining, "Remaining").foregroundStyle(remaining < 0 ? Theme.bad : Theme.accent)
         }
@@ -138,8 +144,8 @@ struct DiaryView: View {
     private func logRow(_ row: FoodLogRow) -> some View {
         // consumed = .zero: each food is judged on its own, for speed (colour only).
         let verdict = HealthVerdict.evaluate(name: row.name, item: row.total, targets: targets,
-                                             dailyGoalKcal: app.goalKcal(for: day), consumed: .zero,
-                                             conditionIds: app.profile?.conditions ?? [])
+                                             dailyGoalKcal: goal, consumed: .zero,
+                                             conditionIds: conditionIds)
         return HStack {
             Circle().fill(verdict.level.color).frame(width: 10, height: 10).accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
