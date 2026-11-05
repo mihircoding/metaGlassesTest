@@ -75,13 +75,21 @@ final class Backend {
         return try await foodLogs(userId: userId, from: range.start, to: range.end)
     }
 
-    /// Logs with `from <= logged_at < to`, oldest first.
+    /// PostgREST returns at most 1000 rows per request, so longer ranges are fetched page by page.
+    private static let pageSize = 1000
+
+    /// Logs with `from <= logged_at < to`, oldest first (ties by id so pages never overlap or skip).
     func foodLogs(userId: UUID, from: Date, to: Date) async throws -> [FoodLogRow] {
-        // ponytail: PostgREST caps a response at 1000 rows by default (~8 months of logs); page if a range needs more.
-        try await run {
-            try await client.from("food_logs").select().eq("user_id", value: userId)
-                .gte("logged_at", value: from).lt("logged_at", value: to)
-                .order("logged_at").execute().value
+        try await run { () async throws -> [FoodLogRow] in
+            var all: [FoodLogRow] = []
+            while true {
+                let page: [FoodLogRow] = try await client.from("food_logs").select().eq("user_id", value: userId)
+                    .gte("logged_at", value: from).lt("logged_at", value: to)
+                    .order("logged_at").order("id")
+                    .range(from: all.count, to: all.count + Self.pageSize - 1).execute().value
+                all += page
+                if page.count < Self.pageSize { return all }
+            }
         }
     }
 

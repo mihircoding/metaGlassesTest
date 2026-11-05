@@ -24,9 +24,7 @@ struct PatientDetailView: View {
             case .diary:
                 DiaryView(userId: patient.id, readOnly: true, subject: patient)
             case .progress:
-                // ponytail: NutritionProgressView(userId:) arrives in Task 22.
-                ContentUnavailableView("Progress", systemImage: "chart.line.uptrend.xyaxis",
-                                       description: Text("Coming soon."))
+                NutritionProgressView(userId: patient.id, subject: patient)
             case .bodyLog:
                 PatientBodyList(userId: patient.id)
             case .plan:

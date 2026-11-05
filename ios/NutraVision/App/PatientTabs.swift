@@ -26,7 +26,12 @@ struct PatientTabs: View {
             }
             .tag(Tab.diary).tabItem { Label("Diary", systemImage: "book") }
             Color.clear.tag(Tab.add).tabItem { Label("Add", systemImage: "plus.circle.fill") }
-            PlaceholderScreen(title: "Progress").tag(Tab.progress)
+            NavigationStack {
+                if let id = app.profile?.id {
+                    NutritionProgressView(userId: id).navigationTitle("Progress")
+                } else { ProgressView() }
+            }
+            .tag(Tab.progress)
                 .tabItem { Label("Progress", systemImage: "chart.line.uptrend.xyaxis") }
             MoreView().tag(Tab.more).tabItem { Label("More", systemImage: "ellipsis") }
         }
