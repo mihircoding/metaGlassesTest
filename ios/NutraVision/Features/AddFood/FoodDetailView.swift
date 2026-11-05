@@ -9,6 +9,8 @@ struct FoodDetailView: View {
     var source: FoodSource = .search
     /// Called after a successful add; the Add Food sheet uses it to close itself.
     var onLogged: (() -> Void)?
+    /// Pick mode (plan editor): the button says Choose and reports the food and servings instead of logging.
+    var onPick: ((FoodItem, Double) -> Void)?
 
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
@@ -21,12 +23,14 @@ struct FoodDetailView: View {
     @State private var error: String?
     @State private var saving = false
 
-    init(item: FoodItem, meal: Meal, date: Date, source: FoodSource = .search, onLogged: (() -> Void)? = nil) {
+    init(item: FoodItem, meal: Meal, date: Date, source: FoodSource = .search, onLogged: (() -> Void)? = nil,
+         onPick: ((FoodItem, Double) -> Void)? = nil) {
         self.item = item
         self.meal = meal
         self.date = date
         self.source = source
         self.onLogged = onLogged
+        self.onPick = onPick
         _selectedMeal = State(initialValue: meal)
         _gramsText = State(initialValue: item.servingGrams.map { String(Int($0.rounded())) } ?? "")
     }
@@ -71,8 +75,10 @@ struct FoodDetailView: View {
                         Text("Servings: \(servings, format: .number.precision(.fractionLength(0...2)))")
                     }
                 }
-                Picker("Meal", selection: $selectedMeal) {
-                    ForEach(Meal.allCases, id: \.self) { Text($0.title).tag($0) }
+                if onPick == nil {
+                    Picker("Meal", selection: $selectedMeal) {
+                        ForEach(Meal.allCases, id: \.self) { Text($0.title).tag($0) }
+                    }
                 }
             }
             Section("Nutrition") {
@@ -88,7 +94,7 @@ struct FoodDetailView: View {
                 Button {
                     add()
                 } label: {
-                    Text(error == nil ? "Add" : "Retry").frame(maxWidth: .infinity)
+                    Text(onPick != nil ? "Choose" : error == nil ? "Add" : "Retry").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent).tint(Theme.accent)
                 .disabled(saving || factor <= 0)
@@ -99,6 +105,11 @@ struct FoodDetailView: View {
     }
 
     private func add() {
+        if let onPick {
+            onPick(item, factor)
+            if let onLogged { onLogged() } else { dismiss() }
+            return
+        }
         guard let userId = Backend.shared.userId else { return }
         saving = true
         error = nil

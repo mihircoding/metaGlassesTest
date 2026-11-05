@@ -32,6 +32,8 @@ struct MoreView: View {
                                     }
                                 }
                             }
+                            NavigationLink("Conditions") { ConditionLibraryView() }
+                            NavigationLink("Diet Plans") { DietPlansView() }
                             NavigationLink("Glasses") { GlassesSettingsView() }
                             NavigationLink("Apple Health") { AppleHealthView() }
                         }

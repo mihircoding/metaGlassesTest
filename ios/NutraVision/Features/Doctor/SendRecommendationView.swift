@@ -8,7 +8,6 @@ struct SendRecommendationView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var kind = RecommendationKind.targets
     @State private var targets: Targets
-    // ponytail: minimal plan edit (rename, remove items); Task 23's plan editor replaces this.
     @State private var plan: DietPlanDraft
     @State private var message = ""
     @State private var sending = false
@@ -90,25 +89,25 @@ struct SendRecommendationView: View {
     @ViewBuilder
     private var planSections: some View {
         Section("Plan") {
-            TextField("Plan name", text: $plan.name)
-            Text("Starts from the \(ConditionCatalog.condition(id: plan.conditionId).name) sample plan. Swipe to remove foods.")
-                .font(.footnote).foregroundStyle(.secondary)
-        }
-        ForEach(plan.meals.indices, id: \.self) { index in
-            Section(plan.meals[index].meal.title) {
-                ForEach(plan.meals[index].items) { item in
-                    HStack {
-                        VStack(alignment: .leading) {
-                            Text(item.name)
-                            Text(item.servingDesc).font(.footnote).foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Text("\(Int(item.nutrients.kcal.rounded())) kcal").foregroundStyle(.secondary)
-                    }
+            NavigationLink {
+                DietPlanEditorView(plan: planRow) { edited in
+                    plan = DietPlanDraft(name: edited.name, conditionId: plan.conditionId, notes: plan.notes,
+                                         targets: edited.targets, meals: edited.meals)
                 }
-                .onDelete { plan.meals[index].items.remove(atOffsets: $0) }
+            } label: {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(plan.name)
+                    Text("Starts from the \(ConditionCatalog.condition(id: plan.conditionId).name) sample plan. Tap to edit.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
             }
         }
+    }
+
+    /// The draft as a plan row for the shared editor; the editor hands the edits back instead of saving.
+    private var planRow: DietPlanRow {
+        DietPlanRow(userId: patient.id, authorId: Backend.shared.userId ?? patient.id, conditionId: plan.conditionId,
+                    name: plan.name, notes: plan.notes, targets: plan.targets, meals: plan.meals, isActive: false)
     }
 
     private func send() {

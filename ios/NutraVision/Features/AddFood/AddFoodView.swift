@@ -5,6 +5,8 @@ import SwiftUI
 struct AddFoodView: View {
     let meal: Meal
     let date: Date
+    /// Pick mode (plan editor): foods are chosen, not logged. Photo scan is hidden.
+    var onPick: ((FoodItem, Double) -> Void)? = nil
 
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
@@ -48,8 +50,10 @@ struct AddFoodView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItemGroup(placement: .primaryAction) {
-                    Button { showPhoto = true } label: { Image(systemName: "camera") }
-                        .accessibilityLabel("Photo scan")
+                    if onPick == nil {
+                        Button { showPhoto = true } label: { Image(systemName: "camera") }
+                            .accessibilityLabel("Photo scan")
+                    }
                     Button { showBarcode = true } label: { Image(systemName: "barcode.viewfinder") }
                         .accessibilityLabel("Scan barcode")
                 }
@@ -64,7 +68,7 @@ struct AddFoodView: View {
             .sheet(item: $scanned) { entry in
                 NavigationStack {
                     FoodDetailView(item: entry.item, meal: meal, date: date, source: entry.source,
-                                   onLogged: { scanned = nil; dismiss() })
+                                   onLogged: { scanned = nil; dismiss() }, onPick: onPick)
                         .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { scanned = nil } } }
                 }
             }
@@ -96,7 +100,7 @@ struct AddFoodView: View {
             ForEach(entries) { entry in
                 NavigationLink {
                     FoodDetailView(item: entry.item, meal: meal, date: date, source: entry.source,
-                                   onLogged: { dismiss() })
+                                   onLogged: { dismiss() }, onPick: onPick)
                 } label: {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(entry.item.name)
