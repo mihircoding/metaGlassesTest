@@ -43,7 +43,9 @@ public enum HealthVerdict {
     // item sodium / day sodium
     let sodiumSev: Severity = has("hypertension", "heart_disease", "ckd", "liver") ? .bad : .caution
     if item.sodiumMg > 0.4 * targets.sodiumMg {
-      add(sodiumSev, "High sodium, \(n(item.sodiumMg)) mg, \(n(item.sodiumMg / targets.sodiumMg * 100))% of your daily limit")
+      // A zero target would make the percentage infinite (and Int(inf) traps), so word it without one.
+      let pct = targets.sodiumMg > 0 ? ", \(n(item.sodiumMg / targets.sodiumMg * 100))% of your daily limit" : ""
+      add(sodiumSev, "High sodium, \(n(item.sodiumMg)) mg\(pct)")
     }
     if consumed.sodiumMg + item.sodiumMg > targets.sodiumMg {
       add(sodiumSev, "Puts you over today's sodium limit")

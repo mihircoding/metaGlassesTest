@@ -9,6 +9,7 @@ struct NutritionProgressView: View {
 
     @Environment(AppModel.self) private var app
     private enum Mode: String, CaseIterable { case month = "Month", year = "Year", trends = "Trends" }
+    @State private var appeared = false
     @State private var mode = Mode.month
     /// Any date inside the month (or year) on screen.
     @State private var anchor = Date()
@@ -57,6 +58,9 @@ struct NutritionProgressView: View {
         }
         .navigationDestination(item: $selected) { day in
             DiaryView(userId: userId, readOnly: subject != nil, date: day, subject: subject)
+        }
+        .onAppear {  // refresh after a day edit or the Add tab; the task below covers first appear
+            if appeared { Task { await load() } } else { appeared = true }
         }
         .task(id: "\(mode.rawValue)|\(visibleRange.start.timeIntervalSince1970)") { await load() }
     }

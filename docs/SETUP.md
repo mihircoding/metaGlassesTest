@@ -20,8 +20,10 @@
 7. **App config.** Put the project URL and anon key (Project Settings > API) in
    `ios/NutraVision/App/Config.swift`.
 8. **Generate the Xcode project** (Mac): `brew install xcodegen && cd ios && xcodegen`.
-9. **Signing and Meta.** In Xcode set the signing team; set `MetaAppID` in `ios/NutraVision/Info.plist`
-   to your Meta App ID (create the app in the Meta Wearables Developer Center, wearables.developer.meta.com, and copy its App ID). In the Meta AI app, enable Developer Mode for the glasses.
+9. **Signing and Meta.** In Xcode set the signing team. For the demo leave `MetaAppID` empty in
+   `ios/NutraVision/Info.plist` (Developer Mode requires it empty) and enable Developer Mode for the glasses in the
+   Meta AI app. Only for a production release: register the app in the Wearables Developer Center
+   (wearables.developer.meta.com) and set `MetaAppID` together with `ClientToken` (and `TeamID`).
 10. **Run** on a physical iPhone (the camera, Bluetooth and glasses need real hardware).
     The iPhone needs iOS 17.2 or later (the Meta Wearables DAT SDK 1.0 minimum).
 
@@ -49,9 +51,9 @@ All use password `demo1234`.
 1. Sign up as a patient with Type 2 diabetes + Hypertension and the goal "lose 0.5 kg/week"; the Dashboard shows computed daily targets.
 2. More > Glasses: connect, then start Glasses Mode. Look at a plate, say "scan this" and hear the name, calories and verdict (about 8 s). Say "add it"; it is logged to the right meal and you hear the new daily total.
 3. Look at a packaged item's barcode; the result is spoken without a command. Say "add it".
-4. Tap ＋, search "greek yogurt"; see USDA generic and branded results and add one with a serving size.
+4. Tap the Add tab (＋), search "greek yogurt"; see USDA generic and branded results and add one with a serving size.
 5. Open Diary (MyFitnessPal layout), then Progress: colored month calendar and 12-month year heatmap.
-6. Log a run manually, then More > Apple Health to import a workout; remaining calories on the Dashboard increase.
+6. Log exercise (a run) from the Add tab, then More > Apple Health to import a workout; remaining calories on the Dashboard increase.
 7. Sign in as doctor@nutravision.demo and send a link request to the patient. Patient: More > Care Team > accept. Doctor opens the patient's diary, then sends lower sodium targets. Patient accepts; targets and verdicts change (More > Conditions shows the active rules).
 8. More > Diet Plans: start the Bodybuilding sample plan, swap a food, keep it as the active plan.
 

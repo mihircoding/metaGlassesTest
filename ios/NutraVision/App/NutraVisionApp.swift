@@ -11,7 +11,7 @@ struct NutraVisionApp: App {
         do {
             try Wearables.configure()
         } catch {
-            assertionFailure("Wearables.configure() failed: \(error)")
+            NSLog("Wearables.configure() failed: \(error)")  // phone-camera path stays usable
         }
         _wearablesVM = State(wrappedValue: WearablesViewModel(wearables: Wearables.shared))
     }

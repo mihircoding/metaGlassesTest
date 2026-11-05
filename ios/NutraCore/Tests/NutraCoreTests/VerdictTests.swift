@@ -24,6 +24,12 @@ final class VerdictTests: XCTestCase {
     let v = HealthVerdict.evaluate(name: "Soup", item: Nutrients(kcal: 150, sodiumMg: 900), targets: T, dailyGoalKcal: 2000, consumed: .zero, conditionIds: [])
     XCTAssertEqual(v, Verdict(level: .moderation, reasons: [VerdictReason(severity: .caution, text: "High sodium, 900 mg, 45% of your daily limit")]))
   }
+  func testZeroSodiumTargetDoesNotTrap() {
+    var t = T; t.sodiumMg = 0
+    let v = HealthVerdict.evaluate(name: "Soup", item: Nutrients(kcal: 150, sodiumMg: 500), targets: t, dailyGoalKcal: 2000, consumed: .zero, conditionIds: [])
+    XCTAssertFalse(v.reasons.contains { $0.text.contains("% of your daily limit") })
+    XCTAssertEqual(v.reasons.first?.text, "High sodium, 500 mg")
+  }
   func testHeartSatFatBad() {
     XCTAssertEqual(eval(Nutrients(kcal: 300, satFatG: 11), ["heart_disease"]),
                    Verdict(level: .notRecommended, reasons: [VerdictReason(severity: .bad, text: "High saturated fat, 11 g")]))

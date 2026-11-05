@@ -4,9 +4,15 @@ import UIKit
 
 /// Camera -> analyze-food -> ScanResultCard -> one food_logs row per item.
 struct PhotoScanSheet: View {
-    let meal: Meal
+    @State private var meal: Meal
     let date: Date
     var onLogged: () -> Void = {}
+
+    init(meal: Meal, date: Date, onLogged: @escaping () -> Void = {}) {
+        _meal = State(initialValue: meal)
+        self.date = date
+        self.onLogged = onLogged
+    }
 
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
@@ -38,7 +44,7 @@ struct PhotoScanSheet: View {
                         if !notes.isEmpty {
                             Text(notes).font(.footnote).foregroundStyle(.secondary).padding([.horizontal, .top])
                         }
-                        ScanResultCard(items: $items, onAdd: { add($0) }, onSkip: { dismiss() })
+                        ScanResultCard(items: $items, meal: $meal, onAdd: { add($0) }, onSkip: { dismiss() })
                         if let saveError {
                             VStack(spacing: 8) {
                                 Text(saveError).foregroundStyle(Theme.bad).font(.footnote)

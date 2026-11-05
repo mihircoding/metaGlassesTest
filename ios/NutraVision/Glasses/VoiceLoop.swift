@@ -225,7 +225,7 @@ final class VoiceLoop: NSObject, AVSpeechSynthesizerDelegate {
     /// Runs to the end even after the screen closes: a confirmed add is saved, or its failure is reported.
     private func log(_ items: [AnalyzedItem], origin: FoodSource, scanId id: UUID, verdict shownVerdict: Verdict?,
                      meal: Meal?) async {
-        let slot = meal ?? MealSlot.meal(at: Date())
+        let slot = meal ?? selectedMeal
         do {
             guard let userId = Backend.shared.userId else { throw BackendError.message("You're signed out.") }
             let rows = items.map {
