@@ -71,6 +71,7 @@ final class ScreenTourTests: XCTestCase {
             sleep(6)
             snap("25-patient-food-search")
         }
+        cancelAddFood()
         dismissSheets()
 
         tabs.buttons["More"].tap()
@@ -129,6 +130,33 @@ final class ScreenTourTests: XCTestCase {
         app.buttons.matching(identifier: "Sign in").allElementsBoundByIndex.last?.tap()
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 30), "sign-in did not reach the tab bar")
         dismissSavePasswordPrompt()
+    }
+
+    /// Leaves search mode, then taps the Add Food sheet's own Cancel and checks it closes
+    /// (back on the Add menu). Fails the test if Cancel doesn't dismiss the sheet.
+    private func cancelAddFood() {
+        let bar = app.navigationBars["Add to Snacks"].exists ? app.navigationBars["Add to Snacks"]
+            : app.navigationBars.matching(NSPredicate(format: "identifier BEGINSWITH 'Add to'")).firstMatch
+        if !bar.waitForExistence(timeout: 2) {
+            // Search mode hides the bar; the X beside the search field ends it.
+            app.buttons["Close"].firstMatch.tap()
+            sleep(1)
+        }
+        guard bar.waitForExistence(timeout: 5) else {
+            print("ADDFOOD-DEBUG no 'Add to …' bar:\n\(app.debugDescription)")
+            XCTFail("Add Food navigation bar not found")
+            return
+        }
+        print("ADDFOOD-DEBUG bar:\n\(bar.debugDescription)")
+        let cancel = bar.buttons["Cancel"]
+        guard cancel.waitForExistence(timeout: 3) else {
+            XCTFail("No Cancel button in the Add Food bar")
+            return
+        }
+        cancel.tap()
+        let closed = app.navigationBars["Add"].waitForExistence(timeout: 5)
+        snap("25b-after-add-food-cancel")
+        XCTAssertTrue(closed, "Cancel did not close the Add Food sheet")
     }
 
     /// Backs out of stacked sheets (food search inside the Add sheet) until none is left.
