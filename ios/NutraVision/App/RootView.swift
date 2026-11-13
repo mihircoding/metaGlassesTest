@@ -12,6 +12,12 @@ struct RootView: View {
                     if let banner = app.banner {
                         Text(banner).multilineTextAlignment(.center).foregroundStyle(.secondary)
                         Button("Retry") { Task { await app.refresh() } }.buttonStyle(.borderedProminent)
+                        // Without this, a signed-in user whose profile won't load has no way out.
+                        Button("Sign out", role: .destructive) {
+                            Task {
+                                do { try await Backend.shared.signOut() } catch { app.banner = error.localizedDescription }
+                            }
+                        }
                     }
                 }
                 .padding()
