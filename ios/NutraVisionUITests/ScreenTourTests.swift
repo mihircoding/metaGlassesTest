@@ -49,6 +49,12 @@ final class ScreenTourTests: XCTestCase {
         tabs.buttons["Diary"].tap()
         sleep(3)
         snap("22-patient-diary")
+        // Seed data covers the 30 days before setup, so show yesterday's full diary too.
+        if app.buttons["Previous day"].exists {
+            app.buttons["Previous day"].tap()
+            sleep(3)
+            snap("22b-patient-diary-yesterday")
+        }
 
         tabs.buttons["Progress"].tap()
         sleep(4)
@@ -64,10 +70,8 @@ final class ScreenTourTests: XCTestCase {
             search.typeText("oatmeal\n")
             sleep(6)
             snap("25-patient-food-search")
-            if app.buttons["Cancel"].exists { app.buttons["Cancel"].firstMatch.tap() }
-            if app.buttons["Cancel"].exists { app.buttons["Cancel"].firstMatch.tap() }
         }
-        if app.buttons["Close"].waitForExistence(timeout: 3) { app.buttons["Close"].tap() }
+        dismissSheets()
 
         tabs.buttons["More"].tap()
         sleep(2)
@@ -124,6 +128,35 @@ final class ScreenTourTests: XCTestCase {
         passwordField.typeText(demoPassword)
         app.buttons.matching(identifier: "Sign in").allElementsBoundByIndex.last?.tap()
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 30), "sign-in did not reach the tab bar")
+        dismissSavePasswordPrompt()
+    }
+
+    /// Backs out of stacked sheets (food search inside the Add sheet) until none is left.
+    private func dismissSheets() {
+        for _ in 0..<6 {
+            if app.buttons["Cancel"].exists {
+                app.buttons["Cancel"].firstMatch.tap()
+            } else if app.buttons["Close"].exists {
+                app.buttons["Close"].firstMatch.tap()
+            } else {
+                return
+            }
+            sleep(1)
+        }
+    }
+
+    /// iOS offers to save the password after a sign-in; the prompt covers the screen until dismissed.
+    private func dismissSavePasswordPrompt() {
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let deadline = Date().addingTimeInterval(8)
+        while Date() < deadline {
+            for owner in [app, springboard] where owner.buttons["Not Now"].exists {
+                owner.buttons["Not Now"].tap()
+                sleep(1)
+                return
+            }
+            usleep(250_000)
+        }
     }
 
     /// The Supabase session survives relaunches, so a previous test may leave the app signed in.
