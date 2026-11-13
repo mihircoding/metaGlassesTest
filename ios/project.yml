@@ -33,3 +33,18 @@ targets:
       - package: MWDAT
         product: MWDATCamera
       - package: NutraCore
+    scheme:
+      testTargets:
+        - NutraVisionUITests
+  NutraVisionUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: NutraVisionUITests
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.nutravision.app.uitests
+        TEST_TARGET_NAME: NutraVision
+    dependencies:
+      - target: NutraVision

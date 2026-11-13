@@ -71,6 +71,7 @@ jobs:
                       print(dev["udid"]); sys.exit()
           ')
           echo "Simulator: $UDID"
+          echo "SIM_UDID=$UDID" >> "$GITHUB_ENV"
           xcrun simctl boot "$UDID"
           xcrun simctl bootstatus "$UDID" -b
           xcrun simctl status_bar "$UDID" override --time "9:41" --batteryState charged --batteryLevel 100 --wifiBars 3 --cellularBars 4 || true
@@ -92,6 +93,21 @@ jobs:
             echo "::error::NutraVision is not running (it crashed or exited)."; exit 1
           fi
 
+      - name: UI screen tour
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcrun simctl ui "$SIM_UDID" appearance light
+          xcodebuild test \
+            -project NutraVision.xcodeproj \
+            -scheme NutraVision \
+            -destination "id=$SIM_UDID" \
+            -derivedDataPath build \
+            -only-testing:NutraVisionUITests \
+            CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual \
+            TEST_RUNNER_SCREENSHOT_DIR="$GITHUB_WORKSPACE/screenshots" \
+            2>&1 | tee uitest.log | grep -E "error:|Test Case|TEST (SUCCEEDED|FAILED)|\*\* TEST"
+
       - name: Upload screenshots and logs
         if: always()
         uses: actions/upload-artifact@v4
@@ -100,4 +116,5 @@ jobs:
           path: |
             screenshots/
             ios/build.log
+            ios/uitest.log
           if-no-files-found: ignore
