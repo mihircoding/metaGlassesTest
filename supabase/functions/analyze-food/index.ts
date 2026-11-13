@@ -18,4 +18,4 @@ const callClaude: CallClaude = async (data, mediaType) => {
   const text = res.content.find((b) => b.type === "text");
   return parseClaudeFood(text && "text" in text ? text.text : "");
 };
-Deno.serve((req) => handleAnalyzeFood(req, { fdcKey: Deno.env.get("FDC_API_KEY") ?? "", fetchFn: fetch, callClaude }));
+Deno.serve((req) => handleAnalyzeFood(req, { fdcKey: Deno.env.get("FDC_API_KEY") || "DEMO_KEY", fetchFn: fetch, callClaude }));
