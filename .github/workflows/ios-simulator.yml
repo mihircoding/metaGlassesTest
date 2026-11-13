@@ -18,8 +18,24 @@ jobs:
   build:
     runs-on: macos-latest
     timeout-minutes: 60
+    env:
+      # Public client values (the anon key ships inside the app); kept as repo secrets so the
+      # project isn't hard-coded in the public repo. Unset -> app builds with placeholders.
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Point the app at Supabase
+        if: env.SUPABASE_URL != ''
+        working-directory: ios
+        run: |
+          sed -i '' \
+            -e "s|https://YOUR-PROJECT.supabase.co|$SUPABASE_URL|" \
+            -e "s|YOUR-ANON-KEY|$SUPABASE_ANON_KEY|" \
+            NutraVision/App/Config.swift
+          grep -q "YOUR-" NutraVision/App/Config.swift && { echo "::error::Config.swift still has placeholders"; exit 1; } || true
+          echo "DEMO_BACKEND=1" >> "$GITHUB_ENV"
 
       - name: Show Xcode
         run: xcodebuild -version && xcrun simctl list runtimes
@@ -98,7 +114,8 @@ jobs:
         run: |
           set -o pipefail
           xcrun simctl ui "$SIM_UDID" appearance light
-          TEST_RUNNER_SCREENSHOT_DIR="$GITHUB_WORKSPACE/screenshots" xcodebuild test \
+          TEST_RUNNER_SCREENSHOT_DIR="$GITHUB_WORKSPACE/screenshots" \
+          TEST_RUNNER_DEMO_BACKEND="${DEMO_BACKEND:-0}" xcodebuild test \
             -project NutraVision.xcodeproj \
             -scheme NutraVision \
             -destination "id=$SIM_UDID" \
