@@ -1,0 +1,93 @@
+name: iOS simulator build
+
+# Builds NutraVision for the iOS Simulator on a GitHub macOS runner,
+# launches it and saves screenshots as a downloadable artifact.
+on:
+  push:
+    branches: [main, "ci/**"]
+    paths: ["ios/**", ".github/workflows/ios-simulator.yml"]
+  pull_request:
+    paths: ["ios/**", ".github/workflows/ios-simulator.yml"]
+  workflow_dispatch:
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show Xcode
+        run: xcodebuild -version && xcrun simctl list runtimes
+
+      - name: NutraCore unit tests
+        working-directory: ios/NutraCore
+        run: swift test 2>&1 | tail -40
+
+      - name: Generate Xcode project
+        working-directory: ios
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: Build for simulator
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project NutraVision.xcodeproj \
+            -scheme NutraVision \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tee build.log | grep -E "error:|warning: .*deprecated|BUILD (SUCCEEDED|FAILED)" || true
+          grep -q "BUILD SUCCEEDED" build.log
+
+      - name: Error summary
+        if: failure()
+        working-directory: ios
+        run: grep -E "error:" build.log | sort -u | head -80 || true
+
+      - name: Run in simulator and take screenshots
+        working-directory: ios
+        run: |
+          set -x
+          mkdir -p ../screenshots
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
+          import json,sys
+          d=json.load(sys.stdin)["devices"]
+          for rt in sorted(d, reverse=True):
+              if "iOS" not in rt: continue
+              for dev in d[rt]:
+                  if dev["name"].startswith("iPhone") and "Pro" in dev["name"] and "Max" not in dev["name"]:
+                      print(dev["udid"]); sys.exit()
+          ')
+          echo "Simulator: $UDID"
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl status_bar "$UDID" override --time "9:41" --batteryState charged --batteryLevel 100 --wifiBars 3 --cellularBars 4 || true
+          APP=$(find build/Build/Products -name "NutraVision.app" -maxdepth 3 | head -1)
+          xcrun simctl install "$UDID" "$APP"
+          xcrun simctl launch --console-pty "$UDID" com.nutravision.app > ../screenshots/app-console.log 2>&1 &
+          sleep 12
+          xcrun simctl io "$UDID" screenshot ../screenshots/01-launch.png
+          sleep 8
+          xcrun simctl io "$UDID" screenshot ../screenshots/02-after-20s.png
+          xcrun simctl ui "$UDID" appearance dark
+          sleep 3
+          xcrun simctl io "$UDID" screenshot ../screenshots/03-dark-mode.png
+
+      - name: Upload screenshots and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nutravision-simulator
+          path: |
+            screenshots/
+            ios/build.log
+          if-no-files-found: ignore
