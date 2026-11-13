@@ -59,7 +59,7 @@ final class VerdictTests: XCTestCase {
     XCTAssertEqual(eval(Nutrients(kcal: 100), []), Verdict(level: .goodFit, reasons: []))
   }
   func testOrderingAndCap() {
-    let v = eval(Nutrients(kcal: 300, carbsG: 60, fiberG: 6, sodiumMg: 900), ["t2_diabetes"])
+    let v = eval(Nutrients(kcal: 300, carbsG: 60, sodiumMg: 900, fiberG: 6), ["t2_diabetes"])
     XCTAssertEqual(v.reasons.map(\.severity), [.bad, .caution])   // fiber's "good" is cut by the cap
   }
 }

@@ -26,7 +26,10 @@ jobs:
 
       - name: NutraCore unit tests
         working-directory: ios/NutraCore
-        run: swift test 2>&1 | tail -40
+        shell: bash
+        run: |
+          set -o pipefail
+          swift test 2>&1 | tail -60
 
       - name: Generate Xcode project
         working-directory: ios
@@ -44,7 +47,7 @@ jobs:
             -sdk iphonesimulator \
             -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath build \
-            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual \
             2>&1 | tee build.log | grep -E "error:|warning: .*deprecated|BUILD (SUCCEEDED|FAILED)" || true
           grep -q "BUILD SUCCEEDED" build.log
 
@@ -81,6 +84,13 @@ jobs:
           xcrun simctl ui "$UDID" appearance dark
           sleep 3
           xcrun simctl io "$UDID" screenshot ../screenshots/03-dark-mode.png
+          set +x
+          echo "===== app console ====="; cat ../screenshots/app-console.log
+          if xcrun simctl spawn "$UDID" launchctl list | grep -q "com.nutravision.app"; then
+            echo "App is still running."
+          else
+            echo "::error::NutraVision is not running (it crashed or exited)."; exit 1
+          fi
 
       - name: Upload screenshots and logs
         if: always()
