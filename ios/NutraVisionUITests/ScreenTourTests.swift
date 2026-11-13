@@ -181,6 +181,10 @@ final class ScreenTourTests: XCTestCase {
         let tabBar = app.tabBars.firstMatch
         let deadline = Date().addingTimeInterval(20)
         while Date() < deadline && !welcome.exists && !tabBar.exists { usleep(250_000) }
+        if !welcome.exists && !tabBar.exists {
+            snap("00-stuck-on-launch-\(name.filter(\.isLetter))")
+            print("LAUNCH-DEBUG stuck after relaunch:\n\(app.debugDescription)")
+        }
         guard tabBar.exists else { return }
         tabBar.buttons["More"].tap()
         let signOut = app.buttons["Sign out"]
