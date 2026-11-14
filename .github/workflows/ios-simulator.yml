@@ -1,0 +1,136 @@
+name: iOS simulator build
+
+# Builds NutraVision for the iOS Simulator on a GitHub macOS runner,
+# launches it and saves screenshots as a downloadable artifact.
+on:
+  push:
+    branches: [main, "ci/**"]
+    paths: ["ios/**", ".github/workflows/ios-simulator.yml"]
+  pull_request:
+    paths: ["ios/**", ".github/workflows/ios-simulator.yml"]
+  workflow_dispatch:
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    env:
+      # Public client values (the anon key ships inside the app); kept as repo secrets so the
+      # project isn't hard-coded in the public repo. Unset -> app builds with placeholders.
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Point the app at Supabase
+        if: env.SUPABASE_URL != ''
+        working-directory: ios
+        run: |
+          sed -i '' \
+            -e "s|https://YOUR-PROJECT.supabase.co|$SUPABASE_URL|" \
+            -e "s|YOUR-ANON-KEY|$SUPABASE_ANON_KEY|" \
+            NutraVision/App/Config.swift
+          grep -q "YOUR-" NutraVision/App/Config.swift && { echo "::error::Config.swift still has placeholders"; exit 1; } || true
+          echo "DEMO_BACKEND=1" >> "$GITHUB_ENV"
+
+      - name: Show Xcode
+        run: xcodebuild -version && xcrun simctl list runtimes
+
+      - name: NutraCore unit tests
+        working-directory: ios/NutraCore
+        shell: bash
+        run: |
+          set -o pipefail
+          swift test 2>&1 | tail -60
+
+      - name: Generate Xcode project
+        working-directory: ios
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: Build for simulator
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project NutraVision.xcodeproj \
+            -scheme NutraVision \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build \
+            CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual \
+            2>&1 | tee build.log | grep -E "error:|warning: .*deprecated|BUILD (SUCCEEDED|FAILED)" || true
+          grep -q "BUILD SUCCEEDED" build.log
+
+      - name: Error summary
+        if: failure()
+        working-directory: ios
+        run: grep -E "error:" build.log | sort -u | head -80 || true
+
+      - name: Run in simulator and take screenshots
+        working-directory: ios
+        run: |
+          set -x
+          mkdir -p ../screenshots
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
+          import json,sys
+          d=json.load(sys.stdin)["devices"]
+          for rt in sorted(d, reverse=True):
+              if "iOS" not in rt: continue
+              for dev in d[rt]:
+                  if dev["name"].startswith("iPhone") and "Pro" in dev["name"] and "Max" not in dev["name"]:
+                      print(dev["udid"]); sys.exit()
+          ')
+          echo "Simulator: $UDID"
+          echo "SIM_UDID=$UDID" >> "$GITHUB_ENV"
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl status_bar "$UDID" override --time "9:41" --batteryState charged --batteryLevel 100 --wifiBars 3 --cellularBars 4 || true
+          APP=$(find build/Build/Products -name "NutraVision.app" -maxdepth 3 | head -1)
+          xcrun simctl install "$UDID" "$APP"
+          xcrun simctl launch --console-pty "$UDID" com.nutravision.app > ../screenshots/app-console.log 2>&1 &
+          sleep 12
+          xcrun simctl io "$UDID" screenshot ../screenshots/01-launch.png
+          sleep 8
+          xcrun simctl io "$UDID" screenshot ../screenshots/02-after-20s.png
+          xcrun simctl ui "$UDID" appearance dark
+          sleep 3
+          xcrun simctl io "$UDID" screenshot ../screenshots/03-dark-mode.png
+          set +x
+          echo "===== app console ====="; cat ../screenshots/app-console.log
+          if xcrun simctl spawn "$UDID" launchctl list | grep -q "com.nutravision.app"; then
+            echo "App is still running."
+          else
+            echo "::error::NutraVision is not running (it crashed or exited)."; exit 1
+          fi
+
+      - name: UI screen tour
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcrun simctl ui "$SIM_UDID" appearance light
+          TEST_RUNNER_SCREENSHOT_DIR="$GITHUB_WORKSPACE/screenshots" \
+          TEST_RUNNER_DEMO_BACKEND="${DEMO_BACKEND:-0}" xcodebuild test \
+            -project NutraVision.xcodeproj \
+            -scheme NutraVision \
+            -destination "id=$SIM_UDID" \
+            -derivedDataPath build \
+            -only-testing:NutraVisionUITests \
+            CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual \
+            2>&1 | tee uitest.log | grep -E "error:|Test Case|TEST (SUCCEEDED|FAILED)|\*\* TEST"
+
+      - name: Upload screenshots and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nutravision-simulator
+          path: |
+            screenshots/
+            ios/build.log
+            ios/uitest.log
+          if-no-files-found: ignore
