@@ -72,6 +72,23 @@ jobs:
         working-directory: ios
         run: grep -E "error:" build.log | sort -u | head -80 || true
 
+      # Appetize.io streams a simulator build in the browser, so the app can be used from
+      # Windows. It wants the .app zipped at the archive root; ditto keeps the executable bit.
+      - name: Package simulator build for Appetize
+        working-directory: ios
+        run: |
+          APP=$(find build/Build/Products -name "NutraVision.app" -maxdepth 3 | head -1)
+          lipo -info "$APP/NutraVision"
+          mkdir -p ../appetize
+          ditto -c -k --sequesterRsrc --keepParent "$APP" ../appetize/NutraVision-simulator.zip
+          ls -lh ../appetize
+
+      - name: Upload Appetize build
+        uses: actions/upload-artifact@v4
+        with:
+          name: nutravision-appetize
+          path: appetize/NutraVision-simulator.zip
+
       - name: Run in simulator and take screenshots
         working-directory: ios
         run: |
