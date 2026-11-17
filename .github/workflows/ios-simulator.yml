@@ -131,6 +131,10 @@ jobs:
         run: |
           set -o pipefail
           xcrun simctl ui "$SIM_UDID" appearance light
+          # The app's startup and Supabase request logs (debug builds), to see where a launch stalls.
+          xcrun simctl spawn "$SIM_UDID" log stream --level debug --style compact \
+            --predicate 'subsystem == "com.nutravision.app"' > ../screenshots/app-log.txt 2>&1 &
+          trap 'kill $! 2>/dev/null || true' EXIT
           TEST_RUNNER_SCREENSHOT_DIR="$GITHUB_WORKSPACE/screenshots" \
           TEST_RUNNER_DEMO_BACKEND="${DEMO_BACKEND:-0}" xcodebuild test \
             -project NutraVision.xcodeproj \
@@ -139,7 +143,7 @@ jobs:
             -derivedDataPath build \
             -only-testing:NutraVisionUITests \
             CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual \
-            2>&1 | tee uitest.log | grep -E "error:|Test Case|TEST (SUCCEEDED|FAILED)|\*\* TEST"
+            2>&1 | tee uitest.log | grep -E "error:|Test Case|TEST (SUCCEEDED|FAILED)|\*\* TEST|RELAUNCH-DEBUG attempt"
 
       - name: Upload screenshots and logs
         if: always()
