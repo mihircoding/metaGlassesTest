@@ -8,6 +8,10 @@ struct NutraVisionApp: App {
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
+        #if DEBUG
+        MainThreadWatchdog.start()
+        startupLog.debug("init: configuring Wearables")
+        #endif
         do {
             try Wearables.configure()
         } catch {

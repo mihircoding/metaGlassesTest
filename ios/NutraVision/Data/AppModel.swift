@@ -4,7 +4,7 @@ import Observation
 import OSLog
 import Supabase
 
-private let startupLog = Logger(subsystem: "com.nutravision.app", category: "Startup")
+let startupLog = Logger(subsystem: "com.nutravision.app", category: "Startup")
 
 /// App-wide state: who is signed in, their profile and today's totals.
 @Observable

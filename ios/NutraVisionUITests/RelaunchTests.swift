@@ -18,11 +18,17 @@ final class RelaunchTests: XCTestCase {
         if !tabBar.exists { signInAsMaria() }
         XCTAssertTrue(tabBar.waitForExistence(timeout: 30), "could not sign in")
 
-        for attempt in 1...6 {
+        for attempt in 1...15 {
+            print("RELAUNCH-DEBUG attempt \(attempt): launching at \(Self.clock())")
             app.launch()  // terminates and relaunches with the stored session
             let started = Date()
-            if tabBar.waitForExistence(timeout: 15) {
-                print("RELAUNCH-DEBUG attempt \(attempt): tabs after \(Int(Date().timeIntervalSince(started)))s")
+            print("RELAUNCH-DEBUG attempt \(attempt): launch returned at \(Self.clock())")
+            if !tabBar.waitForExistence(timeout: 3) {
+                // Slow start: record what is on screen, then keep waiting.
+                print("RELAUNCH-DEBUG attempt \(attempt): no tabs at \(Self.clock()), on screen:\n\(app.debugDescription)")
+            }
+            if tabBar.waitForExistence(timeout: 12) {
+                print("RELAUNCH-DEBUG attempt \(attempt): tabs after \(Int(Date().timeIntervalSince(started)))s at \(Self.clock())")
                 continue
             }
             snap("relaunch-\(attempt)-stuck")
@@ -38,6 +44,14 @@ final class RelaunchTests: XCTestCase {
             XCTFail("Relaunch \(attempt) hung on the loading screen: \(outcome) at \(seconds)s")
             break
         }
+    }
+
+    /// Wall-clock time in UTC, to line up with the app's unified log.
+    private static func clock() -> String {
+        let format = DateFormatter()
+        format.dateFormat = "HH:mm:ss.SSS"
+        format.timeZone = TimeZone(identifier: "UTC")
+        return format.string(from: Date())
     }
 
     private func signInAsMaria() {
