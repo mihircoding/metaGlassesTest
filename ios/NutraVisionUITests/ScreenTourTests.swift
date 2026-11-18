@@ -128,8 +128,7 @@ final class ScreenTourTests: XCTestCase {
         let passwordField = app.secureTextFields["Password"]
         passwordField.tap()
         passwordField.typeText(demoPassword)
-        app.buttons.matching(identifier: "Sign in").allElementsBoundByIndex.last?.tap()
-        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 30), "sign-in did not reach the tab bar")
+        XCTAssertTrue(RelaunchTests.submitSignIn(in: app), "sign-in did not reach the tab bar, even after a retry")
         dismissSavePasswordPrompt()
     }
 

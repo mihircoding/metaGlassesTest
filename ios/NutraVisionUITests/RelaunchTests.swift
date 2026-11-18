@@ -16,7 +16,11 @@ final class RelaunchTests: XCTestCase {
         let welcome = app.buttons["Create account"]
         _ = tabBar.waitForExistence(timeout: 20) || welcome.waitForExistence(timeout: 1)
         if !tabBar.exists { signInAsMaria() }
-        XCTAssertTrue(tabBar.waitForExistence(timeout: 30), "could not sign in")
+        // Without a session every relaunch lands on the welcome screen, which would read as a hang.
+        guard tabBar.waitForExistence(timeout: 5) else {
+            XCTFail("could not sign in, even after a retry")
+            return
+        }
 
         for attempt in 1...15 {
             print("RELAUNCH-DEBUG attempt \(attempt): launching at \(Self.clock())")
@@ -35,6 +39,7 @@ final class RelaunchTests: XCTestCase {
             var outcome = "still loading after 90s"
             while Date().timeIntervalSince(started) < 90 {
                 if tabBar.exists { outcome = "tabs appeared"; break }
+                if welcome.exists { outcome = "signed out (welcome screen)"; break }
                 if app.buttons["Retry"].exists { outcome = "error banner appeared"; break }
                 sleep(1)
             }
@@ -63,7 +68,28 @@ final class RelaunchTests: XCTestCase {
         let password = app.secureTextFields["Password"]
         password.tap()
         password.typeText("demo1234")
-        app.buttons.matching(identifier: "Sign in").allElementsBoundByIndex.last?.tap()
+        XCTAssertTrue(Self.submitSignIn(in: app), "sign-in did not reach the tab bar, even after a retry")
+    }
+
+    /// Taps the sign-in form's button and waits for the tab bar, retrying once if the request fails.
+    /// CI's simulator sometimes loses its TLS connection to Supabase (NSURLErrorDomain -1200), and
+    /// a failed request can take up to iOS's 60s timeout to report; the button re-enables when it does.
+    static func submitSignIn(in app: XCUIApplication) -> Bool {
+        let tabBar = app.tabBars.firstMatch
+        for attempt in 1...2 {
+            guard let submit = app.buttons.matching(identifier: "Sign in").allElementsBoundByIndex.last else { return false }
+            submit.tap()
+            sleep(1)
+            let deadline = Date().addingTimeInterval(75)
+            while Date() < deadline {
+                if tabBar.exists { return true }
+                if submit.exists && submit.isEnabled { break }  // request finished without signing in
+                sleep(1)
+            }
+            if tabBar.waitForExistence(timeout: 2) { return true }
+            print("SIGNIN-DEBUG attempt \(attempt) failed")
+        }
+        return false
     }
 
     private func snap(_ name: String) {
