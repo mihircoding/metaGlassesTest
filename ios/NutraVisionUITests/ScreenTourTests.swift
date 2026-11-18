@@ -190,7 +190,8 @@ final class ScreenTourTests: XCTestCase {
         }
         if retry.exists && !tabBar.exists {
             app.buttons["Sign out"].tap()
-            XCTAssertTrue(welcome.waitForExistence(timeout: 15), "the loading screen's Sign out did not reach the welcome screen")
+            // Signing out calls Supabase's /logout, which waits on the same failing network.
+            XCTAssertTrue(welcome.waitForExistence(timeout: 90), "the loading screen's Sign out did not reach the welcome screen")
             return
         }
         guard tabBar.exists else { return }
