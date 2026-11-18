@@ -73,20 +73,13 @@ final class RelaunchTests: XCTestCase {
 
     /// Taps the sign-in form's button and waits for the tab bar, retrying once if the request fails.
     /// CI's simulator sometimes loses its TLS connection to Supabase (NSURLErrorDomain -1200), and
-    /// a failed request can take up to iOS's 60s timeout to report; the button re-enables when it does.
+    /// a failed request can take up to iOS's 60s timeout to report. While the request runs, the form's
+    /// button shows a spinner instead of "Sign in", so wait past that timeout before tapping again.
     static func submitSignIn(in app: XCUIApplication) -> Bool {
         let tabBar = app.tabBars.firstMatch
         for attempt in 1...2 {
-            guard let submit = app.buttons.matching(identifier: "Sign in").allElementsBoundByIndex.last else { return false }
-            submit.tap()
-            sleep(1)
-            let deadline = Date().addingTimeInterval(75)
-            while Date() < deadline {
-                if tabBar.exists { return true }
-                if submit.exists && submit.isEnabled { break }  // request finished without signing in
-                sleep(1)
-            }
-            if tabBar.waitForExistence(timeout: 2) { return true }
+            app.buttons.matching(identifier: "Sign in").allElementsBoundByIndex.last?.tap()
+            if tabBar.waitForExistence(timeout: 70) { return true }
             print("SIGNIN-DEBUG attempt \(attempt) failed")
         }
         return false
