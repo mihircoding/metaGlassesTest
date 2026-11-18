@@ -72,6 +72,23 @@ jobs:
         working-directory: ios
         run: grep -E "error:" build.log | sort -u | head -80 || true
 
+      # Appetize.io streams a simulator build in the browser, so the app can be used from
+      # Windows. It wants the .app zipped at the archive root; ditto keeps the executable bit.
+      - name: Package simulator build for Appetize
+        working-directory: ios
+        run: |
+          APP=$(find build/Build/Products -name "NutraVision.app" -maxdepth 3 | head -1)
+          lipo -info "$APP/NutraVision"
+          mkdir -p ../appetize
+          ditto -c -k --sequesterRsrc --keepParent "$APP" ../appetize/NutraVision-simulator.zip
+          ls -lh ../appetize
+
+      - name: Upload Appetize build
+        uses: actions/upload-artifact@v4
+        with:
+          name: nutravision-appetize
+          path: appetize/NutraVision-simulator.zip
+
       - name: Run in simulator and take screenshots
         working-directory: ios
         run: |
@@ -114,6 +131,10 @@ jobs:
         run: |
           set -o pipefail
           xcrun simctl ui "$SIM_UDID" appearance light
+          # The app's startup and Supabase request logs (debug builds), to see where a launch stalls.
+          xcrun simctl spawn "$SIM_UDID" log stream --level debug --style compact \
+            --predicate 'subsystem == "com.nutravision.app"' > ../screenshots/app-log.txt 2>&1 &
+          trap 'kill $! 2>/dev/null || true' EXIT
           TEST_RUNNER_SCREENSHOT_DIR="$GITHUB_WORKSPACE/screenshots" \
           TEST_RUNNER_DEMO_BACKEND="${DEMO_BACKEND:-0}" xcodebuild test \
             -project NutraVision.xcodeproj \
@@ -122,7 +143,7 @@ jobs:
             -derivedDataPath build \
             -only-testing:NutraVisionUITests \
             CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual \
-            2>&1 | tee uitest.log | grep -E "error:|Test Case|TEST (SUCCEEDED|FAILED)|\*\* TEST"
+            2>&1 | tee uitest.log | grep -E "error:|Test Case|TEST (SUCCEEDED|FAILED)|\*\* TEST|RELAUNCH-DEBUG attempt"
 
       - name: Upload screenshots and logs
         if: always()

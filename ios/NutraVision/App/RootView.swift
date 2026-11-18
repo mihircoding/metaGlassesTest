@@ -23,11 +23,14 @@ struct RootView: View {
                 .padding()
             case .signedOut: WelcomeView()
             case .onboarding: OnboardingView()
-            case .patient: PatientTabs()
+            case .patient: PatientTabs().onAppear { startupLog.debug("patient tabs appeared") }
             case .doctor: DoctorTabs()
             }
         }
         .tint(Theme.accent)
+        .onChange(of: app.phase, initial: true) { _, phase in
+            startupLog.debug("root view showing \(String(describing: phase), privacy: .public)")
+        }
         .safeAreaInset(edge: .top) {
             if app.phase != .loading, let banner = app.banner {
                 HStack {

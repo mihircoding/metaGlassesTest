@@ -1,7 +1,10 @@
 import Foundation
 import NutraCore
 import Observation
+import OSLog
 import Supabase
+
+let startupLog = Logger(subsystem: "com.nutravision.app", category: "Startup")
 
 /// App-wide state: who is signed in, their profile and today's totals.
 @Observable
@@ -46,7 +49,9 @@ final class AppModel {
 
     /// Follows the auth state for the app's lifetime; call once from the root view's `.task`.
     func start() async {
+        startupLog.debug("start: subscribing to auth state")
         for await (event, session) in Backend.shared.client.auth.authStateChanges {
+            startupLog.debug("auth event \(String(describing: event), privacy: .public), session: \(session != nil), expired: \(session?.isExpired ?? false)")
             if let session {
                 if event == .initialSession || event == .signedIn { await load(userId: session.user.id) }
             } else {
@@ -71,6 +76,7 @@ final class AppModel {
 
     func refresh() async {
         guard let userId = Backend.shared.userId else { return }
+        startupLog.debug("refresh: reloading")
         await load(userId: userId)
         // Best-effort: a failed import keeps its anchors and is retried on the next refresh.
         if profile?.role == .patient, HealthSync.shared.isAuthorized {
@@ -86,8 +92,11 @@ final class AppModel {
     }
 
     private func load(userId: UUID) async {
+        let started = Date()
+        startupLog.debug("load: fetching profile")
         do {
             var profile = try await Backend.shared.profile(id: userId)
+            startupLog.debug("load: profile arrived after \(Date().timeIntervalSince(started), format: .fixed(precision: 1))s")
             if profile.role == .doctor, let creds = pendingDoctorCredentials {
                 profile.specialty = creds.specialty
                 profile.licenseNumber = creds.license
@@ -108,6 +117,7 @@ final class AppModel {
             }
             try await today?.load()
         } catch {
+            startupLog.error("load failed after \(Date().timeIntervalSince(started), format: .fixed(precision: 1))s: \(String(describing: error), privacy: .public)")
             banner = error.localizedDescription
         }
     }

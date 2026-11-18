@@ -22,9 +22,18 @@ final class Backend {
     let client = SupabaseClient(
         supabaseURL: Config.supabaseURL,
         supabaseKey: Config.supabaseAnonKey,
-        // Emit the stored session at launch, even offline; requests refresh an expired token themselves.
-        options: .init(auth: .init(emitLocalSessionAsInitialSession: true))
+        options: Backend.clientOptions
     )
+
+    // Emit the stored session at launch, even offline; requests refresh an expired token themselves.
+    nonisolated private static var clientOptions: SupabaseClientOptions {
+        #if DEBUG
+        // Debug builds log Supabase requests to the unified log (tokens and passwords are redacted).
+        .init(auth: .init(emitLocalSessionAsInitialSession: true), global: .init(logger: OSLogSupabaseLogger()))
+        #else
+        .init(auth: .init(emitLocalSessionAsInitialSession: true))
+        #endif
+    }
 
     private init() {}
 
