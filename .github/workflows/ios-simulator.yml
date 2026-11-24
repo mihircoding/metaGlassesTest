@@ -142,8 +142,43 @@ jobs:
             -destination "id=$SIM_UDID" \
             -derivedDataPath build \
             -only-testing:NutraVisionUITests \
+            -skip-testing:NutraVisionUITests/DemoTour \
             CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual \
             2>&1 | tee uitest.log | grep -E "error:|Test Case|TEST (SUCCEEDED|FAILED)|\*\* TEST|RELAUNCH-DEBUG attempt"
+
+      # A screen recording of DemoTour, a paced walk through the patient and doctor screens.
+      # Best effort: a failed recording doesn't fail the build.
+      - name: Record demo video
+        if: env.DEMO_BACKEND == '1'
+        continue-on-error: true
+        working-directory: ios
+        run: |
+          mkdir -p ../demo
+          xcrun simctl ui "$SIM_UDID" appearance light
+          xcrun simctl io "$SIM_UDID" recordVideo --codec=h264 --force ../demo/nutravision-demo.mp4 &
+          REC=$!
+          sleep 3
+          TEST_RUNNER_DEMO_BACKEND=1 xcodebuild test \
+            -project NutraVision.xcodeproj \
+            -scheme NutraVision \
+            -destination "id=$SIM_UDID" \
+            -derivedDataPath build \
+            -only-testing:NutraVisionUITests/DemoTour \
+            CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual \
+            2>&1 | tee demo.log | grep -E "error:|Test Case|\*\* TEST" || true
+          kill -INT $REC
+          wait $REC || true
+          ls -lh ../demo
+
+      - name: Upload demo video
+        if: always() && env.DEMO_BACKEND == '1'
+        uses: actions/upload-artifact@v4
+        with:
+          name: nutravision-demo
+          path: |
+            demo/
+            ios/demo.log
+          if-no-files-found: ignore
 
       - name: Upload screenshots and logs
         if: always()
