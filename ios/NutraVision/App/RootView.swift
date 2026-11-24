@@ -14,7 +14,10 @@ struct RootView: View {
             }
         }
         .tint(Theme.accent)
-        .sheet(isPresented: Binding(get: { app.choosingNewPassword }, set: { app.choosingNewPassword = $0 })) {
+        // Only once signed in: before that the welcome screen (and its "Reset password" sheet) is still
+        // on screen, and a second sheet presented over it would be dropped.
+        .sheet(isPresented: Binding(get: { app.choosingNewPassword && app.phase != .signedOut && app.phase != .loading },
+                                    set: { app.choosingNewPassword = $0 })) {
             NewPasswordView()
         }
         .onChange(of: app.phase, initial: true) { _, phase in

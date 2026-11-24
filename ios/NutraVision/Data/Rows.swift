@@ -263,7 +263,8 @@ struct WeightLogRow: Codable, Identifiable, Equatable {
 struct DietPlanRow: Codable, Identifiable, Equatable {
     var id = UUID()
     var userId: UUID
-    var authorId: UUID
+    /// Nil once the author (a doctor) has deleted their account; the plan stays with the patient.
+    var authorId: UUID?
     var conditionId: String?
     var name: String
     var notes: String?

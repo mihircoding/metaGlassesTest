@@ -74,6 +74,8 @@ final class AppModel {
                 profile = nil
                 today = nil
                 banner = nil
+                choosingNewPassword = false  // the sheet can't save without a session
+                pendingDoctorCredentials = nil
                 phase = .signedOut
             }
         }
@@ -137,6 +139,7 @@ final class AppModel {
                 profile.licenseNumber = creds.license
                 try await Backend.shared.updateProfile(profile)
                 pendingDoctorCredentials = nil
+                try Task.checkCancellation()  // a sign-out during the update must not bring the doctor tabs back
             }
             banner = nil
             self.profile = profile

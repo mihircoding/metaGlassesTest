@@ -8,7 +8,8 @@ import SwiftUI
 
 struct RegistrationView: View {
     let viewModel: WearablesViewModel
-    @Environment(AppModel.self) private var app
+    /// Passed in: this view sits in an overlay, outside the `.environment(app)` it is attached next to.
+    let app: AppModel
 
     var body: some View {
         EmptyView()

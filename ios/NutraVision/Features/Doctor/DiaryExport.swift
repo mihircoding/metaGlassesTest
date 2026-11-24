@@ -23,10 +23,18 @@ enum DiaryExport {
     private static let header = ["date", "time", "meal", "food", "brand", "serving", "servings",
                                  "kcal", "protein_g", "carbs_g", "fat_g", "sat_fat_g", "sodium_mg", "fiber_g", "sugar_g"]
 
+    /// 24-hour "HH:mm" in the device's time zone, whatever the user's 12/24-hour setting.
+    private static let timeFormat: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "HH:mm"
+        return f
+    }()
+
     private static func row(_ log: FoodLogRow) -> [String] {
         let n = log.total
-        let time = log.loggedAt.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
-        return [DayKey.key(for: log.loggedAt), time, log.meal.title, log.name, log.brand ?? "", log.servingDesc,
+        return [DayKey.key(for: log.loggedAt), timeFormat.string(from: log.loggedAt), log.meal.title,
+                CSV.text(log.name), CSV.text(log.brand ?? ""), CSV.text(log.servingDesc),
                 number(log.servings, 2), number(n.kcal, 0), number(n.proteinG, 1), number(n.carbsG, 1), number(n.fatG, 1),
                 number(n.satFatG, 1), number(n.sodiumMg, 0), number(n.fiberG, 1), number(n.sugarG, 1)]
     }

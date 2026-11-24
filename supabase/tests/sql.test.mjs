@@ -11,6 +11,7 @@ test('schema, RLS and functions', async () => {
   await db.exec(sql('./auth_stub.sql'));
   await db.exec(sql('../migrations/0001_init.sql'));
   await db.exec(sql('../migrations/0002_delete_account.sql'));
+  await db.exec(sql('../migrations/0003_keep_plans_when_author_deleted.sql'));
   await db.exec(sql('./rls_check.sql'));
 });
 
@@ -19,6 +20,7 @@ test('delete_my_account removes the caller and everything they own, and nobody e
   await db.exec(sql('./auth_stub.sql'));
   await db.exec(sql('../migrations/0001_init.sql'));
   await db.exec(sql('../migrations/0002_delete_account.sql'));
+  await db.exec(sql('../migrations/0003_keep_plans_when_author_deleted.sql'));
   const gone = "'a0000000-0000-4000-8000-00000000000a'";
   const kept = "'b0000000-0000-4000-8000-00000000000b'";
   await db.exec(`insert into auth.users (id, email, raw_user_meta_data) values
@@ -42,6 +44,27 @@ test('delete_my_account removes the caller and everything they own, and nobody e
   assert.equal(Number(await one(`select count(*) from food_logs where user_id = ${gone}`)), 0);
   assert.equal(Number(await one(`select count(*) from profiles where id = ${kept}`)), 1);
   assert.equal(Number(await one(`select count(*) from food_logs where user_id = ${kept}`)), 1);
+});
+
+test('a doctor deleting their account leaves the plans they wrote with the patient', async () => {
+  const db = new PGlite({ extensions: { pgcrypto } });
+  await db.exec(sql('./auth_stub.sql'));
+  await db.exec(sql('../migrations/0001_init.sql'));
+  await db.exec(sql('../migrations/0002_delete_account.sql'));
+  await db.exec(sql('../migrations/0003_keep_plans_when_author_deleted.sql'));
+  const doc = "'d0000000-0000-4000-8000-00000000000d'";
+  const pat = "'e0000000-0000-4000-8000-00000000000e'";
+  await db.exec(`insert into auth.users (id, email, raw_user_meta_data) values
+    (${doc}, 'doc@example.com', '{"role":"doctor","full_name":"Doc"}'),
+    (${pat}, 'pat@example.com', '{"role":"patient","full_name":"Pat"}')`);
+  await db.exec(`insert into diet_plans (user_id, author_id, name, is_active) values (${pat}, ${doc}, 'Low sodium', true)`);
+  const one = async (q) => Object.values((await db.query(q)).rows[0])[0];
+
+  await db.exec(`set role authenticated; select set_config('request.jwt.claims', json_build_object('sub', ${doc}, 'role', 'authenticated')::text, false);`);
+  await db.exec(`select delete_my_account()`);
+  await db.exec(`reset role`);
+  assert.equal(Number(await one(`select count(*) from profiles where id = ${doc}`)), 0);
+  assert.equal(Number(await one(`select count(*) from diet_plans where user_id = ${pat} and author_id is null`)), 1);
 });
 
 test('demo seed', async () => {

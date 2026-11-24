@@ -13,6 +13,15 @@ final class CSVTests: XCTestCase {
     XCTAssertEqual(CSV.field("two\nlines"), "\"two\nlines\"")
   }
 
+  func testTextNeutralisesFormulas() {
+    XCTAssertEqual(CSV.text("=HYPERLINK(\"http://x\")"), "'=HYPERLINK(\"http://x\")")
+    XCTAssertEqual(CSV.text("+cmd"), "'+cmd")
+    XCTAssertEqual(CSV.text("-1 tbsp"), "'-1 tbsp")
+    XCTAssertEqual(CSV.text("@sum"), "'@sum")
+    XCTAssertEqual(CSV.text("Oatmeal"), "Oatmeal")
+    XCTAssertEqual(CSV.text(""), "")
+  }
+
   func testDocument() {
     let doc = CSV.document(header: ["date", "food"], rows: [["2026-11-24", "Oats, rolled"], ["2026-11-24", "Tea"]])
     XCTAssertEqual(doc, "date,food\r\n2026-11-24,\"Oats, rolled\"\r\n2026-11-24,Tea\r\n")

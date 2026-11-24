@@ -74,7 +74,8 @@ struct DashboardView: View {
                 await loadWeights()
                 await loadEarlierLogs()
             }
-            .task { await loadEarlierLogs() }
+            // Re-fetched when the day rolls over, so yesterday moves into the history.
+            .task(id: DayKey.key(for: app.today?.date ?? Date())) { await loadEarlierLogs() }
             .task(id: app.weightsVersion) { await loadWeights() }
             .task(id: app.today?.consumed.kcal) { await loadHealth() }  // display only, not added to the goal
             .onAppear { Task { await loadHealth() } }  // after connecting from More

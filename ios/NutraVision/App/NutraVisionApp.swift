@@ -32,7 +32,7 @@ struct NutraVisionApp: App {
                     if phase == .active { Task { await app.refresh() } }  // also imports from Apple Health
                 }
                 .overlay {
-                    RegistrationView(viewModel: wearablesVM)
+                    RegistrationView(viewModel: wearablesVM, app: app)
                 }
         }
     }
