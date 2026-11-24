@@ -53,10 +53,15 @@ final class AppModel {
         for await (event, session) in Backend.shared.client.auth.authStateChanges {
             startupLog.debug("auth event \(String(describing: event), privacy: .public), session: \(session != nil), expired: \(session?.isExpired ?? false)")
             if let session {
-                if event == .initialSession || event == .signedIn { await load(userId: session.user.id) }
+                // Not awaited: on a bad network a load can take minutes, and a sign-out arriving
+                // meanwhile must still be handled straight away.
+                if event == .initialSession || event == .signedIn { startLoad(userId: session.user.id) }
             } else {
+                currentLoad?.task.cancel()
+                currentLoad = nil
                 profile = nil
                 today = nil
+                banner = nil
                 phase = .signedOut
             }
         }
@@ -77,7 +82,7 @@ final class AppModel {
     func refresh() async {
         guard let userId = Backend.shared.userId else { return }
         startupLog.debug("refresh: reloading")
-        await load(userId: userId)
+        await startLoad(userId: userId).value
         // Best-effort: a failed import keeps its anchors and is retried on the next refresh.
         if profile?.role == .patient, HealthSync.shared.isAuthorized {
             do {
@@ -91,12 +96,30 @@ final class AppModel {
         }
     }
 
+    /// The profile load in flight, if any. Only one runs at a time and the newest wins: at launch the
+    /// initial session and the scene becoming active both ask for a load, so the first is cancelled
+    /// rather than loading the day twice, and a refresh after an edit never reuses an older load.
+    @ObservationIgnored private var currentLoad: (token: UUID, task: Task<Void, Never>)?
+
+    @discardableResult
+    private func startLoad(userId: UUID) -> Task<Void, Never> {
+        currentLoad?.task.cancel()
+        let token = UUID()
+        let task = Task {
+            await load(userId: userId)
+            if currentLoad?.token == token { currentLoad = nil }
+        }
+        currentLoad = (token, task)
+        return task
+    }
+
     private func load(userId: UUID) async {
         let started = Date()
         startupLog.debug("load: fetching profile")
         do {
             var profile = try await Backend.shared.profile(id: userId)
             startupLog.debug("load: profile arrived after \(Date().timeIntervalSince(started), format: .fixed(precision: 1))s")
+            try Task.checkCancellation()  // signed out (or switched user) while fetching
             if profile.role == .doctor, let creds = pendingDoctorCredentials {
                 profile.specialty = creds.specialty
                 profile.licenseNumber = creds.license
@@ -117,6 +140,7 @@ final class AppModel {
             }
             try await today?.load()
         } catch {
+            if Task.isCancelled { return }  // superseded: the newer state already applies
             startupLog.error("load failed after \(Date().timeIntervalSince(started), format: .fixed(precision: 1))s: \(String(describing: error), privacy: .public)")
             banner = error.localizedDescription
         }

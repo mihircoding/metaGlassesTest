@@ -12,11 +12,13 @@ struct NutraVisionApp: App {
         MainThreadWatchdog.start()
         startupLog.debug("init: configuring Wearables")
         #endif
+        let started = Date()
         do {
             try Wearables.configure()
         } catch {
             NSLog("Wearables.configure() failed: \(error)")  // phone-camera path stays usable
         }
+        startupLog.debug("init: Wearables configured in \(Date().timeIntervalSince(started), format: .fixed(precision: 2))s")
         _wearablesVM = State(wrappedValue: WearablesViewModel(wearables: Wearables.shared))
     }
 

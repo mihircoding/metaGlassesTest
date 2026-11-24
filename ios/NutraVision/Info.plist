@@ -68,6 +68,12 @@
 		<string></string>
 		<key>TeamID</key>
 		<string>$(DEVELOPMENT_TEAM)</string>
+		<!-- A health app: don't let the SDK send Meta usage analytics. -->
+		<key>Analytics</key>
+		<dict>
+			<key>OptOut</key>
+			<true/>
+		</dict>
 	</dict>
 </dict>
 </plist>

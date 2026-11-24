@@ -176,22 +176,21 @@ final class ScreenTourTests: XCTestCase {
 
     /// The Supabase session survives relaunches, so a previous test may leave the app signed in.
     /// Loading that session can stall for a minute or more when CI's simulator loses its connection
-    /// to Supabase (see RelaunchTests), so wait long, and use the loading screen's Sign out if the
-    /// profile load fails.
+    /// to Supabase (see RelaunchTests). After 8s the loading screen offers Sign out, which clears the
+    /// session on the device without waiting for the network, so use it when it shows.
     private func signOutIfNeeded() {
         let welcome = app.buttons["Create account"]
         let tabBar = app.tabBars.firstMatch
-        let retry = app.buttons["Retry"]
-        let deadline = Date().addingTimeInterval(150)
-        while Date() < deadline && !welcome.exists && !tabBar.exists && !retry.exists { usleep(250_000) }
+        let loadingSignOut = app.buttons["Sign out"]  // with no tab bar, only the loading screen has one
+        let deadline = Date().addingTimeInterval(60)
+        while Date() < deadline && !welcome.exists && !tabBar.exists && !loadingSignOut.exists { usleep(250_000) }
         if !welcome.exists && !tabBar.exists {
             snap("00-slow-launch-\(name.filter(\.isLetter))")
             print("LAUNCH-DEBUG no welcome or tabs after relaunch:\n\(app.debugDescription)")
         }
-        if retry.exists && !tabBar.exists {
-            app.buttons["Sign out"].tap()
-            // Signing out calls Supabase's /logout, which waits on the same failing network.
-            XCTAssertTrue(welcome.waitForExistence(timeout: 90), "the loading screen's Sign out did not reach the welcome screen")
+        if loadingSignOut.exists && !tabBar.exists {
+            loadingSignOut.tap()
+            XCTAssertTrue(welcome.waitForExistence(timeout: 10), "the loading screen's Sign out did not reach the welcome screen")
             return
         }
         guard tabBar.exists else { return }
