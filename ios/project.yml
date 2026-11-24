@@ -26,6 +26,9 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.nutravision.app
         CODE_SIGN_ENTITLEMENTS: NutraVision/NutraVision.entitlements
         DEVELOPMENT_TEAM: ""
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
     dependencies:
       - package: Supabase
       - package: MWDAT

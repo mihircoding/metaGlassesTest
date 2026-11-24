@@ -68,6 +68,13 @@ struct DiaryView: View {
                         Text("\(Int(w.durationMin.rounded())) min · \(Int(w.kcal.rounded())) kcal")
                             .foregroundStyle(.secondary)
                     }
+                    .swipeActions {
+                        if !readOnly {
+                            Button(role: .destructive) { Task { await delete(w) } } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
+                    }
                 }
                 if !readOnly {
                     Button("Add exercise") { showExercise = true }
@@ -77,6 +84,7 @@ struct DiaryView: View {
         .navigationTitle("Diary")
         .navigationBarTitleDisplayMode(.inline)
         .task(id: date) { await reload() }
+        .refreshable { await reload() }
         .sheet(item: $addTarget, onDismiss: { Task { await reload() } }) { target in
             AddFoodView(meal: target.meal, date: date)
         }
@@ -188,6 +196,17 @@ struct DiaryView: View {
         do {
             try await Backend.shared.deleteFoodLog(id: row.id)
             await HealthSync.shared.remove(row.id)
+            await reload()
+            if userId == Backend.shared.userId { await app.refresh() }
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    /// Removes a workout. One imported from Apple Health stays deleted: imports only pick up new ones.
+    private func delete(_ workout: WorkoutRow) async {
+        do {
+            try await Backend.shared.deleteWorkout(id: workout.id)
             await reload()
             if userId == Backend.shared.userId { await app.refresh() }
         } catch {

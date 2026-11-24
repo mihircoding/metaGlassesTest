@@ -26,13 +26,16 @@ struct PhotoScanSheet: View {
     @State private var saveError: String?
     @State private var lastMeal: Meal?
     @State private var saving = false
+    @AppStorage(AIConsent.key) private var aiConsent = false
 
     var body: some View {
         NavigationStack {
             Group {
                 switch phase {
                 case .capture:
-                    if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                    if !aiConsent {
+                        AIConsentView(onContinue: { aiConsent = true }, onCancel: { dismiss() })
+                    } else if UIImagePickerController.isSourceTypeAvailable(.camera) {
                         CameraPicker(onImage: analyze, onCancel: { dismiss() }).ignoresSafeArea()
                     } else {
                         failure("The camera isn't available on this device.", canRetry: false)

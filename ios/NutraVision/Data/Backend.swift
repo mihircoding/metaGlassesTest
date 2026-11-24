@@ -62,6 +62,14 @@ final class Backend {
         try await run { try await client.auth.signOut() }
     }
 
+    /// Deletes the signed-in user and, through cascades, everything they own (`delete_my_account`),
+    /// then drops the session on this device. The server no longer knows the session, so a failure
+    /// telling it about the sign-out is expected and ignored.
+    func deleteAccount() async throws {
+        try await run { try await client.rpc("delete_my_account").execute() }
+        try? await client.auth.signOut(scope: .local)
+    }
+
     // MARK: Profiles
 
     func profile(id: UUID) async throws -> ProfileRow {
@@ -207,6 +215,10 @@ final class Backend {
 
     func insertWeight(_ weight: WeightLogRow) async throws {
         try await run { try await client.from("weight_logs").insert(weight).execute() }
+    }
+
+    func deleteWeight(id: UUID) async throws {
+        try await run { try await client.from("weight_logs").delete().eq("id", value: id).execute() }
     }
 
     /// Apple Health imports: a weight already stored under the same `healthkit_uuid` is left as it is.

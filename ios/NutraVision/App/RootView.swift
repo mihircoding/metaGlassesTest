@@ -24,6 +24,7 @@ struct RootView: View {
                     Spacer()
                     Button("Retry") { Task { await app.refresh() } }
                     Button { app.banner = nil } label: { Image(systemName: "xmark") }
+                        .accessibilityLabel("Dismiss")
                 }
                 .padding(10)
                 .background(Theme.bad.opacity(0.15))

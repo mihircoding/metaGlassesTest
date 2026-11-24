@@ -18,8 +18,18 @@ struct GlassesModeView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
     @State private var loop: VoiceLoop?
+    @AppStorage(AIConsent.key) private var aiConsent = false
 
     var body: some View {
+        // Scans go to the analyze-food AI, so ask first; the scanner (and its camera) starts only after.
+        if aiConsent {
+            scanner
+        } else {
+            AIConsentView(onContinue: { aiConsent = true }, onCancel: { dismiss() })
+        }
+    }
+
+    private var scanner: some View {
         Group {
             if let loop { GlassesModeScreen(loop: loop) } else { ProgressView() }
         }

@@ -61,6 +61,11 @@ struct DashboardView: View {
                 .padding()
             }
             .navigationTitle("Dashboard")
+            .refreshable {
+                await app.refresh()
+                await careTeam.load()
+                await loadWeights()
+            }
             .task(id: app.weightsVersion) { await loadWeights() }
             .task(id: app.today?.consumed.kcal) { await loadHealth() }  // display only, not added to the goal
             .onAppear { Task { await loadHealth() } }  // after connecting from More
@@ -123,17 +128,25 @@ struct DashboardView: View {
                 Button("Retry") { Task { await loadWeights() } }.buttonStyle(.bordered)
             }
         } else if weights.count >= 2 {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Weight, last 30 days").font(.footnote).foregroundStyle(.secondary)
-                Chart(weights) { w in
-                    LineMark(x: .value("Date", w.measuredAt), y: .value("kg", w.weightKg))
-                        .foregroundStyle(Theme.accent)
+            NavigationLink { WeightHistoryView() } label: {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text("Weight, last 30 days").font(.footnote).foregroundStyle(.secondary)
+                        Spacer()
+                        Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+                    }
+                    Chart(weights) { w in
+                        LineMark(x: .value("Date", w.measuredAt), y: .value("kg", w.weightKg))
+                            .foregroundStyle(Theme.accent)
+                    }
+                    .chartYScale(domain: .automatic(includesZero: false))
+                    .frame(height: 80)
                 }
-                .chartYScale(domain: .automatic(includesZero: false))
-                .frame(height: 80)
+                .padding(12)
+                .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
             }
-            .padding(12)
-            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+            .buttonStyle(.plain)
+            .accessibilityHint("Shows every weigh-in")
         }
     }
 

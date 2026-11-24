@@ -28,6 +28,8 @@ struct RequestsView: View {
     @State private var sending = false
     /// Shown verbatim, e.g. "No patient with that email".
     @State private var sendError: String?
+    /// The link a swipe asked to revoke, awaiting confirmation.
+    @State private var revoking: CareLinkRow?
 
     var body: some View {
         NavigationStack {
@@ -57,6 +59,12 @@ struct RequestsView: View {
             .navigationTitle("Requests")
             .task { await model.load() }
             .refreshable { await model.load() }
+            .confirmationDialog("Revoke access?", isPresented: Binding(get: { revoking != nil }, set: { if !$0 { revoking = nil } }),
+                                titleVisibility: .visible, presenting: revoking) { link in
+                Button("Revoke", role: .destructive) { revoke(link) }
+            } message: { link in
+                Text("You will no longer see \(link.patientEmail ?? "this patient")'s food log.")
+            }
         }
     }
 
@@ -74,7 +82,7 @@ struct RequestsView: View {
         }
         .swipeActions {
             if link.status == .pending || link.status == .accepted {
-                Button("Revoke", role: .destructive) { revoke(link) }
+                Button("Revoke", role: .destructive) { revoking = link }
             }
         }
     }

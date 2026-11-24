@@ -63,6 +63,7 @@ private struct ScanItemRow: View {
             }
             Spacer()
             TextField("g", text: $text)
+                .accessibilityLabel("Grams")
                 .keyboardType(.decimalPad)
                 .multilineTextAlignment(.trailing)
                 .frame(width: 64)

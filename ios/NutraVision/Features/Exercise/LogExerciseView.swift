@@ -53,6 +53,7 @@ struct LogExerciseView: View {
                         Text("Distance (optional)")
                         Spacer()
                         TextField("0", text: $distance).keyboardType(.decimalPad).multilineTextAlignment(.trailing)
+                            .accessibilityLabel("Distance")
                             .frame(width: 70)
                         Picker("Unit", selection: $useMiles) {
                             Text("km").tag(false)
