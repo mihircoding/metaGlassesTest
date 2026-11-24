@@ -46,8 +46,12 @@ struct ConditionDetailView: View {
                     .buttonStyle(.bordered).disabled(busy || inConditions || app.profile == nil)
             }
             Section {
-                Text("NutraVision is not medical advice. Talk to your doctor before changing your diet.")
-                    .font(.footnote).foregroundStyle(.secondary)
+                ForEach(ConditionCatalog.sources(for: condition.id), id: \.self) { SourceLink(source: $0) }
+                SourceLink(source: ConditionCatalog.calorieMethod)
+            } header: {
+                Text("Sources")
+            } footer: {
+                Text("The limits and advice above follow these guidelines; the calorie target uses the Mifflin-St Jeor equation. NutraVision is not medical advice. Talk to your doctor before changing your diet.")
             }
         }
         .navigationTitle(condition.name)

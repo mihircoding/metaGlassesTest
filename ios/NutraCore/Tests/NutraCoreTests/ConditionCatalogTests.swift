@@ -21,6 +21,14 @@ final class ConditionCatalogTests: XCTestCase {
       XCTAssertFalse(c.recommend.isEmpty || c.avoid.isEmpty || c.summary.isEmpty, c.id)
     }
   }
+  func testEveryConditionCitesHTTPSSources() {
+    for c in ConditionCatalog.all {
+      let sources = ConditionCatalog.sources(for: c.id)
+      XCTAssertFalse(sources.isEmpty, c.id)
+      for s in sources { XCTAssertEqual(s.url.scheme, "https", "\(c.id) \(s.title)") }
+    }
+    XCTAssertEqual(ConditionCatalog.calorieMethod.url.scheme, "https")
+  }
   func testKeywordFlags() {
     XCTAssertTrue(KeywordFlag.gluten.matches("Whole Wheat Bread"))
     XCTAssertFalse(KeywordFlag.gluten.matches("Brown rice"))
