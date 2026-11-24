@@ -15,6 +15,7 @@ struct PlusSheet: View {
     @State private var lookingUp = false
     @State private var error: String?
     @State private var lastCode: String?
+    @State private var barcodeNotFound = false
 
     private var meal: Meal { MealSlot.meal(at: Date()) }
 
@@ -26,6 +27,13 @@ struct PlusSheet: View {
                         Text(error).font(.footnote).foregroundStyle(Theme.bad)
                         if let lastCode {
                             Button("Retry") { Task { await lookUp(lastCode) } }.buttonStyle(.bordered)
+                        }
+                        if barcodeNotFound {
+                            NavigationLink {
+                                CreateFoodView(onSaved: { self.error = nil; barcodeNotFound = false })
+                            } label: {
+                                Label("Create this food", systemImage: "plus.circle")
+                            }
                         }
                     }
                 }
@@ -81,12 +89,14 @@ struct PlusSheet: View {
         lookingUp = true
         error = nil
         lastCode = nil
+        barcodeNotFound = false
         defer { lookingUp = false }
         do {
             if let product = try await Backend.shared.lookupBarcode(code).first {
                 scanned = product
             } else {
                 error = "No product found for barcode \(code)."
+                barcodeNotFound = true
             }
         } catch {
             self.error = error.localizedDescription

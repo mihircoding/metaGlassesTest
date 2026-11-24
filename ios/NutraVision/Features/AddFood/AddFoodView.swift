@@ -33,6 +33,8 @@ struct AddFoodView: View {
     /// Set while the visible error came from a barcode lookup, so Retry repeats that lookup.
     @State private var lastCode: String?
     @State private var customFailed = false
+    /// The last barcode scan found nothing: offer to create the food instead of a pointless Retry.
+    @State private var barcodeNotFound = false
 
     var body: some View {
         NavigationStack {
@@ -83,7 +85,20 @@ struct AddFoodView: View {
             if let error {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(error).foregroundStyle(Theme.bad).font(.footnote)
-                    Button("Retry") { retry() }.buttonStyle(.bordered)
+                    if !barcodeNotFound { Button("Retry") { retry() }.buttonStyle(.bordered) }
+                }
+                if barcodeNotFound {
+                    // Unknown products are common (store brands, imports): let the user add it once.
+                    NavigationLink {
+                        CreateFoodView(onSaved: {
+                            self.error = nil
+                            barcodeNotFound = false
+                            segment = .mine
+                            retryTick += 1
+                        })
+                    } label: {
+                        Label("Create this food", systemImage: "plus.circle")
+                    }
                 }
             } else if loading || lookingUp {
                 ProgressView().frame(maxWidth: .infinity)
@@ -136,6 +151,7 @@ struct AddFoodView: View {
         error = nil
         lastCode = nil
         customFailed = false
+        barcodeNotFound = false
         let q = query.trimmingCharacters(in: .whitespaces)
         do {
             switch segment {
@@ -180,13 +196,14 @@ struct AddFoodView: View {
         lookingUp = true
         lastCode = nil
         error = nil
+        barcodeNotFound = false
         defer { lookingUp = false }
         do {
             if let product = try await Backend.shared.lookupBarcode(code).first {
                 scanned = Entry(item: product, source: .barcode)
             } else {
                 error = "No product found for barcode \(code)."
-                lastCode = code
+                barcodeNotFound = true
             }
         } catch {
             self.error = error.localizedDescription

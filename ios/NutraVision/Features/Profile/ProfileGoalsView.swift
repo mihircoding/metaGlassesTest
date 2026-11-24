@@ -164,11 +164,14 @@ struct HeightField: View {
             Spacer()
             if imperial {
                 TextField("ft", value: feet, format: .number.precision(.fractionLength(0))).frame(width: 40)
+                    .accessibilityLabel("Height, feet")
                 Text("ft")
                 TextField("in", value: inches, format: .number.precision(.fractionLength(0...1))).frame(width: 50)
+                    .accessibilityLabel("Height, inches")
                 Text("in")
             } else {
                 TextField("cm", value: $cm, format: .number.precision(.fractionLength(0...1))).frame(width: 70)
+                    .accessibilityLabel("Height in centimeters")
                 Text("cm")
             }
             Picker("Unit", selection: $imperial) {
@@ -197,6 +200,7 @@ struct WeightField: View {
             Spacer()
             TextField(pounds ? "lb" : "kg", value: shown, format: .number.precision(.fractionLength(0...1)))
                 .keyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(width: 80)
+                .accessibilityLabel(pounds ? "\(title) in pounds" : "\(title) in kilograms")
             Picker("Unit", selection: $pounds) {
                 Text("kg").tag(false)
                 Text("lb").tag(true)
@@ -236,6 +240,7 @@ struct ProfileGoalsView: View {
             .disabled(saving || draft.heightCm == nil || draft.weightKg == nil)
         }
         .navigationTitle("Profile & Goals")
+        .keyboardDoneButton()
         .onChange(of: draft) { _, _ in draft.recomputeTargets() }
     }
 
