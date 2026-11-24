@@ -148,6 +148,11 @@ final class Backend {
         try await run { try await client.from("custom_foods").insert(food).execute() }
     }
 
+    /// Logged entries keep their own copy of the nutrients, so deleting a custom food leaves the diary as it is.
+    func deleteCustomFood(id: UUID) async throws {
+        try await run { try await client.from("custom_foods").delete().eq("id", value: id).execute() }
+    }
+
     // MARK: Edge Functions
 
     func searchFoods(query: String) async throws -> [FoodItem] {
@@ -232,6 +237,10 @@ final class Backend {
     }
 
     // MARK: Diet plans
+
+    func deleteDietPlan(id: UUID) async throws {
+        try await run { try await client.from("diet_plans").delete().eq("id", value: id).execute() }
+    }
 
     /// Newest first.
     func dietPlans(userId: UUID) async throws -> [DietPlanRow] {

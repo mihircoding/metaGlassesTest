@@ -29,6 +29,12 @@ struct DietPlansView: View {
                         Button("Make active") { activate(plan) }.buttonStyle(.bordered).font(.footnote)
                     }
                 }
+                .swipeActions {
+                    // The active plan drives targets and the Plan list; make another active first.
+                    if !plan.isActive {
+                        Button(role: .destructive) { delete(plan) } label: { Label("Delete", systemImage: "trash") }
+                    }
+                }
             }
         }
         .overlay { if loading && plans.isEmpty { ProgressView() } }
@@ -46,6 +52,17 @@ struct DietPlansView: View {
             error = nil
         } catch {
             self.error = error.localizedDescription
+        }
+    }
+
+    private func delete(_ plan: DietPlanRow) {
+        Task {
+            do {
+                try await Backend.shared.deleteDietPlan(id: plan.id)
+                plans.removeAll { $0.id == plan.id }
+            } catch {
+                self.error = error.localizedDescription
+            }
         }
     }
 

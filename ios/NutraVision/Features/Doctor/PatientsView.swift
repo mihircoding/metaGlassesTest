@@ -40,9 +40,19 @@ final class PatientsModel {
             let today = Backend.dayInterval(Date())
             let from = Calendar.current.date(byAdding: .day, value: -6, to: today.start) ?? today.start
             let todayKey = DayKey.key(for: today.start)
+            let end = today.end
+            // All patients' weeks at once rather than one request after another.
+            let logsByPatient = try await withThrowingTaskGroup(of: (UUID, [FoodLogRow]).self) { group in
+                for id in profiles.map(\.id) {
+                    group.addTask { (id, try await Backend.shared.foodLogs(userId: id, from: from, to: end)) }
+                }
+                var out: [UUID: [FoodLogRow]] = [:]
+                for try await (id, logs) in group { out[id] = logs }
+                return out
+            }
             var result: [PatientSummary] = []
             for profile in profiles.sorted(by: { $0.fullName < $1.fullName }) {
-                let logs = try await Backend.shared.foodLogs(userId: profile.id, from: from, to: today.end)
+                let logs = logsByPatient[profile.id] ?? []
                 let byDay = Dictionary(grouping: logs, by: { DayKey.key(for: $0.loggedAt) })
                 let totals: [Nutrients] = byDay.sorted { $0.key < $1.key }.map { $0.value.map(\.total).sum() }
                 // ponytail: goal ignores exercise here (list view); the diary shows the exact figure.

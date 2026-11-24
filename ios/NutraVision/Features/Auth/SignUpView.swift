@@ -48,6 +48,11 @@ struct SignUpView: View {
                 if busy { ProgressView() } else { Text("Create account") }
             }
             .disabled(busy || !valid)
+            Section {
+                NavigationLink("How NutraVision uses your data") { PrivacyView() }
+            } footer: {
+                Text("NutraVision is not medical advice. Talk to your doctor before changing your diet.")
+            }
         }
         .navigationTitle("Create account")
     }

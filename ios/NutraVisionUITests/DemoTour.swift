@@ -24,6 +24,13 @@ final class DemoTour: XCTestCase {
         pause(4)  // dashboard
         app.swipeUp()
         pause(3)
+        let weightChart = app.staticTexts["Weight, last 30 days"].firstMatch
+        if weightChart.exists {
+            weightChart.tap()  // weight history
+            pause(3)
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+            pause(1)
+        }
         app.swipeDown()
         pause(1)
 
@@ -51,6 +58,15 @@ final class DemoTour: XCTestCase {
         if careTeam.exists {
             careTeam.tap()
             pause(4)
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+            pause(1)
+        }
+        let privacy = app.staticTexts["Privacy & data"].firstMatch
+        if privacy.exists {
+            privacy.tap()
+            pause(3)
+            app.swipeUp()
+            pause(2)
             app.navigationBars.buttons.element(boundBy: 0).tap()
             pause(1)
         }

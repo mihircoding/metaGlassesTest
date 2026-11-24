@@ -109,6 +109,13 @@ struct AddFoodView: View {
                             .font(.footnote).foregroundStyle(.secondary)
                     }
                 }
+                .swipeActions {
+                    if segment == .mine, let id = UUID(uuidString: entry.item.sourceRef) {
+                        Button(role: .destructive) { deleteCustomFood(id: id) } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
+                }
             }
         }
         .listStyle(.plain)
@@ -194,6 +201,17 @@ struct AddFoodView: View {
 
     // NutrientSource has no "manual" case; the placeholder only feeds FoodItem.id, and the log row records
     // its own FoodSource and source_ref.
+    private func deleteCustomFood(id: UUID) {
+        Task {
+            do {
+                try await Backend.shared.deleteCustomFood(id: id)
+                entries.removeAll { $0.item.sourceRef == id.uuidString }
+            } catch {
+                self.error = error.localizedDescription
+            }
+        }
+    }
+
     private static func entry(custom: CustomFoodRow) -> Entry {
         Entry(item: FoodItem(name: custom.name, brand: custom.brand, source: .usda, sourceRef: custom.id.uuidString,
                              servingDesc: custom.servingDesc, servingGrams: custom.servingGrams,
