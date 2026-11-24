@@ -25,6 +25,13 @@ struct PatientSummary: Identifiable {
     var id: UUID { profile.id }
 }
 
+/// One patient's last 7 days, fetched together for the list.
+private struct PatientWeek: Sendable {
+    let logs: [FoodLogRow]
+    let vitals: [VitalLogRow]
+    let fluids: [FluidLogRow]
+}
+
 @Observable
 @MainActor
 final class PatientsModel {
@@ -42,21 +49,35 @@ final class PatientsModel {
             let todayKey = DayKey.key(for: today.start)
             let end = today.end
             // All patients' weeks at once rather than one request after another.
-            let logsByPatient = try await withThrowingTaskGroup(of: (UUID, [FoodLogRow]).self) { group in
+            let weekByPatient = try await withThrowingTaskGroup(of: (UUID, PatientWeek).self) { group in
                 for id in profiles.map(\.id) {
-                    group.addTask { (id, try await Backend.shared.foodLogs(userId: id, from: from, to: end)) }
+                    group.addTask {
+                        let week = PatientWeek(
+                            logs: try await Backend.shared.foodLogs(userId: id, from: from, to: end),
+                            // Best effort, so the list still works on a backend without migration 0006.
+                            vitals: (try? await Backend.shared.vitals(userId: id, from: from, to: end)) ?? [],
+                            fluids: (try? await Backend.shared.fluids(userId: id, from: from, to: end)) ?? [])
+                        return (id, week)
+                    }
                 }
-                var out: [UUID: [FoodLogRow]] = [:]
-                for try await (id, logs) in group { out[id] = logs }
+                var out: [UUID: PatientWeek] = [:]
+                for try await (id, week) in group { out[id] = week }
                 return out
             }
             var result: [PatientSummary] = []
             for profile in profiles.sorted(by: { $0.fullName < $1.fullName }) {
-                let logs = logsByPatient[profile.id] ?? []
+                let week = weekByPatient[profile.id] ?? PatientWeek(logs: [], vitals: [], fluids: [])
+                let logs = week.logs
                 let byDay = Dictionary(grouping: logs, by: { DayKey.key(for: $0.loggedAt) })
                 let totals: [Nutrients] = byDay.sorted { $0.key < $1.key }.map { $0.value.map(\.total).sum() }
+                let fluidDays = Dictionary(grouping: week.fluids, by: { DayKey.key(for: $0.loggedAt) })
+                    .sorted { $0.key < $1.key }.map { $0.value.reduce(0) { $0 + $1.ml } }
                 // ponytail: goal ignores exercise here (list view); the diary shows the exact figure.
-                let flags = PatientFlags.flags(days: totals, targets: profile.targets, dailyGoalKcal: profile.targets.kcal)
+                let flags = VitalFlags.flags(
+                    bloodPressure: week.vitals.compactMap { v in v.systolic.flatMap { s in v.diastolic.map { (systolic: s, diastolic: $0) } } },
+                    glucose: week.vitals.compactMap { v in v.glucoseMgDl.map { (mgDl: $0, context: v.glucoseContext ?? .other) } },
+                    fluidDays: fluidDays, fluidLimitMl: profile.fluidLimitMl)
+                    + PatientFlags.flags(days: totals, targets: profile.targets, dailyGoalKcal: profile.targets.kcal)
                 let todayKcal: Double = byDay[todayKey].map { $0.map(\.total).sum().kcal } ?? 0
                 let average: Double? = totals.isEmpty ? nil : totals.reduce(0) { $0 + $1.kcal } / Double(totals.count)
                 result.append(PatientSummary(profile: profile, todayKcal: todayKcal, averageKcal: average, flags: flags))

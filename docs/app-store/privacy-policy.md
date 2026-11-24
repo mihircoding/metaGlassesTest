@@ -7,7 +7,7 @@ NutraVision ("the app") is a food diary for people managing a health condition, 
 ## What we collect
 
 - **Account:** your name, email address, password (stored hashed by our authentication provider) and whether you're a patient or a doctor. Doctors also give a specialty and license number.
-- **Health and diary data you enter:** foods and servings, nutrition, meals, workouts, weigh-ins, body measurements, birth date, sex, activity level, health conditions, goals, daily targets and diet plans.
+- **Health and diary data you enter:** foods and servings, nutrition, meals, drinks and fluid limit, blood pressure and blood sugar readings, workouts, weigh-ins, body measurements, birth date, sex, activity level, health conditions, goals, daily targets and diet plans.
 - **Food photos:** only when you use photo or glasses scanning. See "AI food recognition" below.
 - **Apple Health:** only if you connect it. We read workouts, steps and weight, and write the food and weight you log. Apple Health data isn't used for advertising or sold.
 
@@ -20,7 +20,7 @@ Only to run the app: to show your diary and progress against your targets, to ca
 ## Who can see it
 
 - **You.** Each account can read only its own data.
-- **Doctors you accept.** A doctor can see your profile, diary, workouts, weight and plans only after you accept their request. You can revoke access at any time in Care Team, and the doctor loses access immediately. Doctors' license numbers are checked before they can send requests.
+- **Doctors you accept.** A doctor can see your profile, diary, readings, workouts, weight and plans only after you accept their request. Doctors can keep their own notes about your care; those notes are visible only to that doctor, are hidden from them if you revoke access, and are deleted with your account. You can revoke access at any time in Care Team, and the doctor loses access immediately. Doctors' license numbers are checked before they can send requests.
 - **Service providers** that process data for us:
   - **Supabase** hosts the database and sign-in.
   - **Anthropic** analyzes food photos.

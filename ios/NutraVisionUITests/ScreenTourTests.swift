@@ -82,6 +82,29 @@ final class ScreenTourTests: XCTestCase {
             app.staticTexts["Care Team"].firstMatch.tap()
             sleep(3)
             snap("27-patient-care-team")
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+        }
+        let vitals = app.buttons["Vitals"].firstMatch
+        if vitals.waitForExistence(timeout: 3) || app.staticTexts["Vitals"].exists {
+            (vitals.exists ? vitals : app.staticTexts["Vitals"].firstMatch).tap()
+            sleep(3)
+            snap("28-patient-vitals")
+            let log = app.navigationBars["Vitals"].buttons["Log a reading"]
+            if log.waitForExistence(timeout: 3) { log.tap() }
+            if app.buttons["Blood pressure"].waitForExistence(timeout: 3) {
+                app.buttons["Blood pressure"].tap()
+                sleep(1)
+                let systolic = app.textFields["Systolic in millimeters of mercury"]
+                if systolic.waitForExistence(timeout: 3) {
+                    systolic.tap()
+                    systolic.typeText("185")
+                    app.textFields["Diastolic in millimeters of mercury"].tap()
+                    app.textFields["Diastolic in millimeters of mercury"].typeText("112")
+                    sleep(1)
+                    snap("29-patient-log-blood-pressure")  // crisis advice; cancelled, never saved
+                }
+                app.buttons["Cancel"].tap()
+            }
         }
     }
 
@@ -102,6 +125,21 @@ final class ScreenTourTests: XCTestCase {
             app.swipeUp()
             sleep(1)
             snap("32-doctor-patient-detail-lower")
+            app.buttons["Body"].tap()
+            sleep(4)
+            snap("34-doctor-patient-vitals")
+            app.buttons["Notes"].tap()
+            sleep(2)
+            snap("35-doctor-patient-notes")
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+        }
+        let james = app.staticTexts["James Carter"].firstMatch
+        if james.waitForExistence(timeout: 5) {
+            james.tap()
+            sleep(3)
+            app.buttons["Body"].tap()
+            sleep(4)
+            snap("36-doctor-patient-blood-pressure")
             app.navigationBars.buttons.element(boundBy: 0).tap()
         }
 

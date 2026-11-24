@@ -5,7 +5,7 @@ import { PGlite } from '@electric-sql/pglite';
 import { pgcrypto } from '@electric-sql/pglite/contrib/pgcrypto';
 
 const sql = (f) => readFileSync(new URL(f, import.meta.url), 'utf8');
-const MIGRATIONS = ['0002_delete_account', '0003_keep_plans_when_author_deleted', '0004_doctor_verification', '0005_ai_scan_quota'];
+const MIGRATIONS = ['0002_delete_account', '0003_keep_plans_when_author_deleted', '0004_doctor_verification', '0005_ai_scan_quota', '0006_vitals_fluids_notes'];
 
 test('schema, RLS and functions', async () => {
   const db = new PGlite({ extensions: { pgcrypto } });
@@ -184,4 +184,100 @@ test('claim_ai_scan counts scans per user per day and stops at the limit', async
   assert.equal(Number(await one(`select claim_ai_scan()`)), 59, 'other users are unaffected');
   await db.exec('reset role');
   assert.equal(Number(await one(`select scans from ai_scan_usage where user_id = ${a}`)), 60, 'a refused scan is not counted');
+});
+
+test('vitals, fluids and clinical notes: who can read and write what', async () => {
+  const db = new PGlite({ extensions: { pgcrypto } });
+  await db.exec(sql('./auth_stub.sql'));
+  await db.exec(sql('../migrations/0001_init.sql'));
+  for (const m of MIGRATIONS) await db.exec(sql('../migrations/' + m + '.sql'));
+  const doc = "'d0000000-0000-4000-8000-00000000000d'";
+  const other = "'d0000000-0000-4000-8000-0000000000dd'";
+  const pat = "'e0000000-0000-4000-8000-00000000000e'";
+  const stranger = "'e0000000-0000-4000-8000-0000000000ee'";
+  await db.exec(`insert into auth.users (id, email, raw_user_meta_data) values
+    (${doc}, 'doc@example.com', '{"role":"doctor"}'), (${other}, 'other@example.com', '{"role":"doctor"}'),
+    (${pat}, 'pat@example.com', '{"role":"patient"}'), (${stranger}, 'stranger@example.com', '{"role":"patient"}')`);
+  await db.exec(`update profiles set verified_at = now() where role = 'doctor'`);
+  const one = async (q) => Object.values((await db.query(q)).rows[0])[0];
+  const as = (uid) => `set role authenticated; select set_config('request.jwt.claims', json_build_object('sub', ${uid}, 'role', 'authenticated')::text, false);`;
+  const count = async (q) => Number(await one(q));
+
+  // The patient logs readings and fluids, and sets a fluid limit.
+  await db.exec(as(pat));
+  await db.exec(`insert into vital_logs (user_id, measured_at, kind, systolic, diastolic, pulse) values (${pat}, now(), 'blood_pressure', 152, 96, 70)`);
+  await db.exec(`insert into vital_logs (user_id, measured_at, kind, glucose_mg_dl, glucose_context) values (${pat}, now(), 'glucose', 64, 'bedtime')`);
+  await db.exec(`insert into fluid_logs (user_id, logged_at, ml) values (${pat}, now(), 250)`);
+  await db.exec(`update profiles set fluid_limit_ml = 1500 where id = ${pat}`);
+  await assert.rejects(db.exec(`insert into vital_logs (user_id, measured_at, kind, systolic) values (${pat}, now(), 'blood_pressure', 120)`),
+    'a blood pressure reading needs both numbers');
+  await assert.rejects(db.exec(`insert into vital_logs (user_id, measured_at, kind, glucose_mg_dl, systolic, diastolic) values (${pat}, now(), 'glucose', 100, 120, 80)`),
+    'a glucose reading has no blood pressure');
+  await assert.rejects(db.exec(`insert into vital_logs (user_id, measured_at, kind, glucose_mg_dl) values (${stranger}, now(), 'glucose', 100)`),
+    'nobody logs for someone else');
+
+  // Nobody else sees them until the patient accepts a doctor.
+  await db.exec(as(stranger));
+  assert.equal(await count(`select count(*) from vital_logs`), 0);
+  await db.exec(as(doc));
+  assert.equal(await count(`select count(*) from vital_logs`), 0);
+  await assert.rejects(db.exec(`insert into clinical_notes (doctor_id, patient_id, body) values (${doc}, ${pat}, 'hi')`),
+    'no notes about a patient who does not share with you');
+  await db.exec(`select request_patient('pat@example.com')`);
+  await db.exec(as(pat));
+  await db.exec(`select respond_care_link((select id from care_links where patient_id = ${pat}), true)`);
+
+  // The linked doctor reads vitals and fluids but can't change them, and keeps private notes.
+  await db.exec(as(doc));
+  assert.equal(await count(`select count(*) from vital_logs`), 2);
+  assert.equal(await count(`select count(*) from fluid_logs`), 1);
+  await db.exec(`update vital_logs set systolic = 120 where kind = 'blood_pressure'`);
+  assert.equal(await count(`select systolic from vital_logs where kind = 'blood_pressure'`), 152, 'doctor cannot edit readings');
+  await assert.rejects(db.exec(`insert into vital_logs (user_id, measured_at, kind, glucose_mg_dl) values (${pat}, now(), 'glucose', 100)`));
+  await db.exec(`insert into clinical_notes (doctor_id, patient_id, body) values (${doc}, ${pat}, 'Discussed evening snacks.')`);
+  await assert.rejects(db.exec(`insert into clinical_notes (doctor_id, patient_id, body) values (${other}, ${pat}, 'forged')`));
+  await assert.rejects(db.exec(`update clinical_notes set body = 'edited'`), 'notes are append-only');
+  assert.equal(await count(`select count(*) from clinical_notes`), 1);
+
+  // The patient and other doctors can't read the notes.
+  await db.exec(as(pat));
+  assert.equal(await count(`select count(*) from clinical_notes`), 0);
+  await db.exec(as(other));
+  assert.equal(await count(`select count(*) from clinical_notes`), 0);
+  assert.equal(await count(`select count(*) from vital_logs`), 0);
+
+  // Revoking hides the readings and the notes from the doctor.
+  await db.exec(as(pat));
+  await db.exec(`update care_links set status = 'revoked' where patient_id = ${pat}`);
+  await db.exec(as(doc));
+  assert.equal(await count(`select count(*) from vital_logs`), 0);
+  assert.equal(await count(`select count(*) from clinical_notes`), 0);
+
+  // Deleting the account takes all of it.
+  await db.exec(as(pat));
+  await db.exec(`select delete_my_account()`);
+  await db.exec('reset role');
+  assert.equal(await count(`select count(*) from vital_logs`), 0);
+  assert.equal(await count(`select count(*) from fluid_logs`), 0);
+  assert.equal(await count(`select count(*) from clinical_notes`), 0);
+});
+
+test('demo vitals load once and move forward with demo_refresh', async () => {
+  const db = new PGlite({ extensions: { pgcrypto } });
+  await db.exec(sql('./auth_stub.sql'));
+  await db.exec(sql('../migrations/0001_init.sql'));
+  for (const m of MIGRATIONS) await db.exec(sql('../migrations/' + m + '.sql'));
+  await db.exec(sql('../seed.sql'));
+  await db.exec(sql('../demo_vitals.sql'));
+  await db.exec(sql('../demo_vitals.sql'));  // second run is a no-op
+  const one = async (q) => Object.values((await db.query(q)).rows[0])[0];
+  assert.equal(Number(await one(`select count(*) from vital_logs where kind = 'blood_pressure'`)), 30);
+  assert.equal(Number(await one(`select count(*) from vital_logs where kind = 'glucose'`)), 30 + 10 + 1);
+  assert.equal(Number(await one(`select count(*) from vital_logs where kind = 'glucose' and glucose_mg_dl < 70`)), 1);
+  assert.ok(Number(await one(`select count(*) from vital_logs where systolic >= 140`)) >= 2);
+  assert.equal(Number(await one(`select count(*) from fluid_logs`)), 13 * 4);
+  await db.exec(`update food_logs set logged_at = logged_at - interval '3 days';
+    update vital_logs set measured_at = measured_at - interval '3 days'`);
+  await db.exec(sql('../demo_refresh.sql'));
+  assert.equal(await one(`select max(measured_at)::date = current_date from vital_logs where kind = 'blood_pressure'`), true, 'readings reach today with the diary');
 });

@@ -259,6 +259,57 @@ final class Backend {
         }
     }
 
+    // MARK: Vitals and fluids
+
+    func vitals(userId: UUID, from: Date, to: Date) async throws -> [VitalLogRow] {
+        try await run {
+            try await client.from("vital_logs").select().eq("user_id", value: userId)
+                .gte("measured_at", value: from).lt("measured_at", value: to)
+                .order("measured_at").execute().value
+        }
+    }
+
+    func insertVital(_ vital: VitalLogRow) async throws {
+        try await run { try await client.from("vital_logs").insert(vital).execute() }
+    }
+
+    func deleteVital(id: UUID) async throws {
+        try await run { try await client.from("vital_logs").delete().eq("id", value: id).execute() }
+    }
+
+    func fluids(userId: UUID, from: Date, to: Date) async throws -> [FluidLogRow] {
+        try await run {
+            try await client.from("fluid_logs").select().eq("user_id", value: userId)
+                .gte("logged_at", value: from).lt("logged_at", value: to)
+                .order("logged_at").execute().value
+        }
+    }
+
+    func insertFluid(_ fluid: FluidLogRow) async throws {
+        try await run { try await client.from("fluid_logs").insert(fluid).execute() }
+    }
+
+    func deleteFluid(id: UUID) async throws {
+        try await run { try await client.from("fluid_logs").delete().eq("id", value: id).execute() }
+    }
+
+    // MARK: Clinical notes (doctor only)
+
+    func clinicalNotes(patientId: UUID) async throws -> [ClinicalNoteRow] {
+        try await run {
+            try await client.from("clinical_notes").select().eq("patient_id", value: patientId)
+                .order("created_at", ascending: false).execute().value
+        }
+    }
+
+    func insertClinicalNote(_ note: ClinicalNoteRow) async throws {
+        try await run { try await client.from("clinical_notes").insert(note).execute() }
+    }
+
+    func deleteClinicalNote(id: UUID) async throws {
+        try await run { try await client.from("clinical_notes").delete().eq("id", value: id).execute() }
+    }
+
     // MARK: Diet plans
 
     func deleteDietPlan(id: UUID) async throws {

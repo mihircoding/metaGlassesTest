@@ -1,12 +1,13 @@
 import NutraCore
 import SwiftUI
 
-/// A linked patient, read-only: Diary | Progress | Body (weigh-ins and workouts) | Plan & history.
+/// A linked patient, read-only: Diary | Progress | Body (vitals, fluids, weigh-ins, workouts) | Plan & history,
+/// plus the doctor's own private Notes.
 struct PatientDetailView: View {
     let patient: ProfileRow
 
     private enum Segment: String, CaseIterable {
-        case diary = "Diary", progress = "Progress", bodyLog = "Body", plan = "Plan & history"
+        case diary = "Diary", progress = "Progress", bodyLog = "Body", plan = "Plan", notes = "Notes"
     }
 
     @State private var segment = Segment.diary
@@ -28,9 +29,11 @@ struct PatientDetailView: View {
             case .progress:
                 NutritionProgressView(userId: patient.id, subject: patient)
             case .bodyLog:
-                PatientBodyList(userId: patient.id)
+                PatientBodyList(patient: patient)
             case .plan:
                 PatientPlanHistory(userId: patient.id)
+            case .notes:
+                ClinicalNotesView(patient: patient)
             }
         }
         .navigationTitle(patient.fullName.isEmpty ? patient.email : patient.fullName)
@@ -52,18 +55,59 @@ struct PatientDetailView: View {
     }
 }
 
-/// Last 90 days of weigh-ins and workouts, newest first.
+/// Last 90 days of blood pressure, blood sugar, weigh-ins and workouts, and 14 days of fluids; newest first.
 private struct PatientBodyList: View {
-    let userId: UUID
+    let patient: ProfileRow
+    private var userId: UUID { patient.id }
 
+    @AppStorage(GlucoseUnit.storageKey) private var unit = GlucoseUnit.mgDl
     @State private var weights: [WeightLogRow] = []
     @State private var workouts: [WorkoutRow] = []
+    /// Oldest first.
+    @State private var vitals: [VitalLogRow] = []
+    @State private var fluidDays: [FluidDay] = []
     @State private var error: String?
+
+    private struct FluidDay: Identifiable {
+        let day: Date
+        let ml: Double
+        var id: Date { day }
+    }
+
+    private var bloodPressure: [VitalLogRow] { vitals.filter { $0.kind == .bloodPressure } }
+    private var glucose: [VitalLogRow] { vitals.filter { $0.kind == .glucose } }
 
     var body: some View {
         List {
             if let error {
                 Section { InlineError(message: error) { Task { await load() } } }
+            }
+            Section("Blood pressure") {
+                if bloodPressure.isEmpty { Text("No readings").foregroundStyle(.secondary) }
+                if bloodPressure.count >= 2 { BloodPressureChart(readings: bloodPressure) }
+                ForEach(bloodPressure.reversed().prefix(20)) { VitalRowView(vital: $0, unit: unit) }
+            }
+            Section("Blood sugar") {
+                if glucose.isEmpty { Text("No readings").foregroundStyle(.secondary) }
+                if glucose.count >= 2 { GlucoseChart(readings: glucose, unit: unit) }
+                ForEach(glucose.reversed().prefix(20)) { VitalRowView(vital: $0, unit: unit) }
+            }
+            Section {
+                if fluidDays.isEmpty { Text("No drinks logged").foregroundStyle(.secondary) }
+                ForEach(fluidDays) { entry in
+                    let over = patient.fluidLimitMl.map { entry.ml > $0 } ?? false
+                    HStack {
+                        Text(entry.day, format: .dateTime.weekday(.abbreviated).month().day())
+                        Spacer()
+                        Text("\(Int(entry.ml.rounded())) ml").monospacedDigit()
+                            .foregroundStyle(over ? Theme.bad : .secondary)
+                    }
+                    .accessibilityElement(children: .combine)
+                }
+            } header: {
+                Text("Fluids, last 14 days")
+            } footer: {
+                if let limit = patient.fluidLimitMl { Text("Patient's limit: \(Int(limit)) ml a day.") }
             }
             Section("Weight") {
                 if weights.isEmpty { Text("No weigh-ins").foregroundStyle(.secondary) }
@@ -101,9 +145,15 @@ private struct PatientBodyList: View {
     private func load() async {
         let end = Backend.dayInterval(Date()).end
         let from = Calendar.current.date(byAdding: .day, value: -90, to: end) ?? end
+        let fluidsFrom = Calendar.current.date(byAdding: .day, value: -14, to: end) ?? end
         do {
             weights = try await Backend.shared.weights(userId: userId, from: from, to: end)
             workouts = try await Backend.shared.workouts(userId: userId, from: from, to: end)
+            vitals = try await Backend.shared.vitals(userId: userId, from: from, to: end)
+            let drinks = try await Backend.shared.fluids(userId: userId, from: fluidsFrom, to: end)
+            let byDay = Dictionary(grouping: drinks) { Calendar.current.startOfDay(for: $0.loggedAt) }
+            fluidDays = byDay.map { day, rows in FluidDay(day: day, ml: rows.reduce(0) { $0 + $1.ml }) }
+                .sorted { $0.day > $1.day }
             error = nil
         } catch {
             if Task.isCancelled { return }

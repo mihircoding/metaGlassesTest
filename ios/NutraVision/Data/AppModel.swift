@@ -18,6 +18,8 @@ final class AppModel {
     var banner: String?
     /// Bumped when a weight is logged so the Dashboard sparkline reloads.
     var weightsVersion = 0
+    /// Bumped when a blood pressure or glucose reading is logged or deleted.
+    var vitalsVersion = 0
     /// Set after a password-reset link signed the user in; RootView then asks for the new password.
     var choosingNewPassword = false
 

@@ -12,6 +12,17 @@ struct DashboardView: View {
     @State private var activeKcal: Double?
     /// When food was logged over the last 90 days before today; today's logs come live from `app.today`.
     @State private var earlierLogTimes: [Date] = []
+    /// The newest blood pressure and blood sugar readings from the last 30 days.
+    @State private var latestBloodPressure: VitalLogRow?
+    @State private var latestGlucose: VitalLogRow?
+    @AppStorage(GlucoseUnit.storageKey) private var glucoseUnit = GlucoseUnit.mgDl
+
+    /// Conditions where blood pressure or blood sugar is part of routine care.
+    private static let vitalsConditions: Set<String> = ["t1_diabetes", "t2_diabetes", "hypertension", "heart_disease", "ckd"]
+    private var showsVitals: Bool {
+        latestBloodPressure != nil || latestGlucose != nil
+            || !Self.vitalsConditions.isDisjoint(with: app.profile?.conditions ?? [])
+    }
 
     private var streak: Int {
         LoggingStreak.days(logged: earlierLogTimes + (app.today?.logs.map(\.loggedAt) ?? []), today: Date())
@@ -63,6 +74,8 @@ struct DashboardView: View {
                         }
                     }
                     if streak >= 2 { streakCard }
+                    if showsVitals { vitalsCard }
+                    FluidCard()
                     weightCard
                 }
                 .padding()
@@ -73,10 +86,12 @@ struct DashboardView: View {
                 await careTeam.load()
                 await loadWeights()
                 await loadEarlierLogs()
+                await loadVitals()
             }
             // Re-fetched when the day rolls over, so yesterday moves into the history.
             .task(id: DayKey.key(for: app.today?.date ?? Date())) { await loadEarlierLogs() }
             .task(id: app.weightsVersion) { await loadWeights() }
+            .task(id: app.vitalsVersion) { await loadVitals() }
             .task(id: app.today?.consumed.kcal) { await loadHealth() }  // display only, not added to the goal
             .onAppear { Task { await loadHealth() } }  // after connecting from More
             .onAppear { Task { await careTeam.load() } }  // reload when returning from Care Team
@@ -114,6 +129,50 @@ struct DashboardView: View {
         if let logs = try? await Backend.shared.foodLogs(userId: userId, from: from, to: startOfToday) {
             earlierLogTimes = logs.map(\.loggedAt)
         }
+    }
+
+    private var vitalsCard: some View {
+        NavigationLink { VitalsView() } label: {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Label("Vitals", systemImage: "heart.text.square").font(.subheadline.weight(.semibold)).foregroundStyle(Theme.bad)
+                    Spacer()
+                    Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+                }
+                HStack(alignment: .top, spacing: 12) {
+                    vitalTile("Blood pressure", latestBloodPressure.flatMap { v in
+                        v.systolic.flatMap { s in v.diastolic.map { d in "\(s)/\(d)" } }
+                    }, latestBloodPressure?.bloodPressureCategory.map { ($0.title, $0.color) })
+                    vitalTile("Blood sugar", latestGlucose?.glucoseMgDl.map(glucoseUnit.format),
+                              latestGlucose?.glucoseCategory.map { ($0.title, $0.color) })
+                }
+            }
+            .padding(12)
+            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Shows your readings and lets you log a new one")
+    }
+
+    private func vitalTile(_ title: String, _ value: String?, _ category: (String, Color)?) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title).font(.footnote).foregroundStyle(.secondary)
+            Text(value ?? "Tap to log").font(value == nil ? Font.subheadline : Font.headline.monospacedDigit())
+                .foregroundStyle(value == nil ? Color.secondary : Color.primary)
+            if let category { CategoryChip(title: category.0, color: category.1) }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+    }
+
+    /// Best effort: without it the card shows "Tap to log".
+    private func loadVitals() async {
+        guard let userId = Backend.shared.userId else { return }
+        let now = Date()
+        guard let rows = try? await Backend.shared.vitals(userId: userId, from: now.addingTimeInterval(-30 * 86_400),
+                                                           to: now.addingTimeInterval(86_400)) else { return }
+        latestBloodPressure = rows.last { $0.kind == .bloodPressure }
+        latestGlucose = rows.last { $0.kind == .glucose }
     }
 
     private var exerciseTile: some View {

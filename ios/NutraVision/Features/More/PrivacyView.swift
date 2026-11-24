@@ -9,13 +9,13 @@ struct PrivacyView: View {
                 item("person.crop.circle", "Your account",
                      "Name, email and whether you're a patient or a doctor.")
                 item("fork.knife", "Your diary",
-                     "Foods, servings, workouts, weigh-ins, health conditions, targets and diet plans.")
+                     "Foods, servings, drinks, workouts, weigh-ins, blood pressure and blood sugar readings, health conditions, targets and diet plans.")
                 item("externaldrive", "Where it's kept",
                      "In NutraVision's database (hosted by Supabase), protected so each account can read only its own data.")
             }
             Section("Who can see it") {
                 item("person.2", "Doctors you accept",
-                     "A doctor sees your diary, progress and weight only after you accept their request. Revoke access anytime in Care Team.")
+                     "A doctor sees your diary, progress, weight and readings only after you accept their request. They can also keep private notes about your care. Revoke access anytime in Care Team.")
                 item("eye.slash", "Nobody else",
                      "No ads, no tracking and no analytics. The Meta glasses SDK's usage analytics are turned off.")
             }

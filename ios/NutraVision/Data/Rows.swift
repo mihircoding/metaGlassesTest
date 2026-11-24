@@ -36,6 +36,10 @@ struct ProfileRow: Codable, Identifiable, Equatable {
     var licenseNumber: String?
     /// Doctors only: an administrator has checked the license (`verified_at` is set). Read-only here.
     var isVerified: Bool
+    /// Patients only: a daily fluid limit from their doctor, in ml; nil = none.
+    var fluidLimitMl: Double?
+    /// False on a backend without migration 0006: then `fluid_limit_ml` is neither shown nor sent.
+    var backendHasFluidLimit = true
 
     var bodyStats: BodyStats {
         BodyStats(sex: sex, birthDate: birthDate.flatMap(Self.date(fromDay:)), heightCm: heightCm,
@@ -61,6 +65,7 @@ struct ProfileRow: Codable, Identifiable, Equatable {
         case addExerciseKcal = "add_exercise_kcal"
         case licenseNumber = "license_number"
         case verifiedAt = "verified_at"
+        case fluidLimitMl = "fluid_limit_ml"
     }
 }
 
@@ -87,6 +92,8 @@ extension ProfileRow {
         licenseNumber = try c.decodeIfPresent(String.self, forKey: .licenseNumber)
         // No `verified_at` key at all means the backend predates doctor verification (migration 0004).
         isVerified = try !c.contains(.verifiedAt) || !c.decodeNil(forKey: .verifiedAt)
+        fluidLimitMl = try c.decodeIfPresent(Double.self, forKey: .fluidLimitMl)
+        backendHasFluidLimit = c.contains(.fluidLimitMl)
     }
 
     /// Every editable column, nil as null. `role`, `email` and `verified_at` are never sent: a trigger rejects changing them.
@@ -107,6 +114,7 @@ extension ProfileRow {
         try c.encode(addExerciseKcal, forKey: .addExerciseKcal)
         try c.encode(specialty, forKey: .specialty)
         try c.encode(licenseNumber, forKey: .licenseNumber)
+        if backendHasFluidLimit { try c.encode(fluidLimitMl, forKey: .fluidLimitMl) }
     }
 }
 
@@ -287,6 +295,70 @@ struct DietPlanRow: Codable, Identifiable, Equatable {
 }
 
 // MARK: - care_links, recommendations
+
+// MARK: - vital_logs, fluid_logs, clinical_notes
+
+enum VitalKind: String, Codable { case glucose, bloodPressure = "blood_pressure" }
+
+/// One blood pressure or glucose reading; the other kind's columns are nil.
+struct VitalLogRow: Codable, Identifiable, Equatable {
+    var id = UUID()
+    var userId: UUID
+    var measuredAt: Date
+    var kind: VitalKind
+    var glucoseMgDl: Double?
+    var glucoseContext: GlucoseContext?
+    var systolic: Int?
+    var diastolic: Int?
+    var pulse: Int?
+    var note: String?
+
+    var bloodPressureCategory: BloodPressureCategory? {
+        guard let systolic, let diastolic else { return nil }
+        return BloodPressureCategory.classify(systolic: systolic, diastolic: diastolic)
+    }
+
+    var glucoseCategory: GlucoseCategory? {
+        glucoseMgDl.map { GlucoseCategory.classify(mgDl: $0, context: glucoseContext ?? .other) }
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, kind, systolic, diastolic, pulse, note
+        case userId = "user_id"
+        case measuredAt = "measured_at"
+        case glucoseMgDl = "glucose_mg_dl"
+        case glucoseContext = "glucose_context"
+    }
+}
+
+struct FluidLogRow: Codable, Identifiable, Equatable {
+    var id = UUID()
+    var userId: UUID
+    var loggedAt: Date
+    var ml: Double
+
+    enum CodingKeys: String, CodingKey {
+        case id, ml
+        case userId = "user_id"
+        case loggedAt = "logged_at"
+    }
+}
+
+/// A doctor's private note about a patient. Only its author can read it.
+struct ClinicalNoteRow: Codable, Identifiable, Equatable {
+    var id = UUID()
+    var createdAt = Date()
+    var doctorId: UUID
+    var patientId: UUID
+    var body: String
+
+    enum CodingKeys: String, CodingKey {
+        case id, body
+        case createdAt = "created_at"
+        case doctorId = "doctor_id"
+        case patientId = "patient_id"
+    }
+}
 
 enum CareLinkStatus: String, Codable { case pending, accepted, declined, revoked }
 

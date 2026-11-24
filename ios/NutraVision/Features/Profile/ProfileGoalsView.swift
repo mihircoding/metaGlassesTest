@@ -129,6 +129,19 @@ struct TargetsSection: View {
             field("Sodium", "mg", \.sodiumMg)
             field("Fiber", "g", \.fiberG)
             Toggle("Add exercise calories to goal", isOn: $draft.addExerciseKcal)
+            if draft.backendHasFluidLimit {
+                HStack {
+                    Text("Fluid limit")
+                    Spacer()
+                    TextField("None", value: Binding(
+                        get: { draft.fluidLimitMl },
+                        set: { draft.fluidLimitMl = ($0 ?? 0) > 0 ? $0 : nil }),
+                        format: .number.precision(.fractionLength(0)))
+                        .keyboardType(.numberPad).multilineTextAlignment(.trailing).frame(width: 90)
+                        .accessibilityLabel("Daily fluid limit in milliliters")
+                    Text("ml").foregroundStyle(.secondary).frame(width: 40, alignment: .leading)
+                }
+            }
             if draft.targetsSource != .auto {
                 Button("Reset to recommended") {
                     draft.targetsSource = .auto
@@ -138,7 +151,8 @@ struct TargetsSection: View {
         } header: {
             Text("Daily targets")
         } footer: {
-            Text(draft.targetsSource == .auto ? "Recommended for your body and conditions." : "Custom targets.")
+            Text((draft.targetsSource == .auto ? "Recommended for your body and conditions." : "Custom targets.")
+                 + " Set a fluid limit only if your doctor gave you one.")
         }
     }
 }

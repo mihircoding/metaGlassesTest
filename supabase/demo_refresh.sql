@@ -15,5 +15,10 @@ begin
   update food_logs set logged_at = logged_at + make_interval(days => shift) where user_id = any(demo);
   update workouts set started_at = started_at + make_interval(days => shift) where user_id = any(demo);
   update weight_logs set measured_at = measured_at + make_interval(days => shift) where user_id = any(demo);
+  -- vital_logs and fluid_logs exist from migration 0006 on
+  if to_regclass('public.vital_logs') is not null then
+    update vital_logs set measured_at = measured_at + make_interval(days => shift) where user_id = any(demo);
+    update fluid_logs set logged_at = logged_at + make_interval(days => shift) where user_id = any(demo);
+  end if;
   raise notice 'Moved demo data forward % days', shift;
 end $$;
