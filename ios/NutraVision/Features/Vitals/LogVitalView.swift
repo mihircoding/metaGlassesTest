@@ -115,7 +115,7 @@ struct LogVitalView: View {
             TextField(placeholder, text: text)
                 .keyboardType(.numberPad).multilineTextAlignment(.trailing).frame(width: 80)
                 .accessibilityLabel(label)
-            Text(unit).foregroundStyle(.secondary).frame(width: 48, alignment: .leading)
+            Text(unit).foregroundStyle(.secondary).lineLimit(1).fixedSize().frame(minWidth: 44, alignment: .leading)
         }
     }
 

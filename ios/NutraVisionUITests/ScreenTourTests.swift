@@ -100,6 +100,8 @@ final class ScreenTourTests: XCTestCase {
                     systolic.typeText("185")
                     app.textFields["Diastolic in millimeters of mercury"].tap()
                     app.textFields["Diastolic in millimeters of mercury"].typeText("112")
+                    let done = app.toolbars.buttons["Done"].firstMatch
+                    if done.exists { done.tap() }  // the advice sits under the keyboard
                     sleep(1)
                     snap("29-patient-log-blood-pressure")  // crisis advice; cancelled, never saved
                 }
@@ -116,7 +118,12 @@ final class ScreenTourTests: XCTestCase {
             if ibd.exists {
                 ibd.tap()
                 sleep(1)
-                for _ in 0..<3 where !app.staticTexts["Recipe ideas"].exists && !app.staticTexts["RECIPE IDEAS"].exists { app.swipeUp() }
+                // Scroll until the first recipe is on screen, then a little more to show the list.
+                // The row is one combined link element, so match on its label.
+                let firstRecipe = app.descendants(matching: .any)
+                    .matching(NSPredicate(format: "label BEGINSWITH %@", "Chicken Meatballs")).firstMatch
+                for _ in 0..<6 where !(firstRecipe.exists && firstRecipe.isHittable) { app.swipeUp() }
+                app.swipeUp()
                 sleep(1)
                 snap("29b-condition-recipes")
             }
