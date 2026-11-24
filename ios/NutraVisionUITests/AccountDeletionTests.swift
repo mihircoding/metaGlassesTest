@@ -11,6 +11,7 @@ final class AccountDeletionTests: XCTestCase {
             throw XCTSkip("No seeded backend configured (DEMO_BACKEND != 1)")
         }
         continueAfterFailure = false
+        app.launchArguments += ["-UITests"]  // a plain password field the test can type into
         app.launch()
         signOutIfSignedIn()
 
