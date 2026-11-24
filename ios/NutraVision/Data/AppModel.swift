@@ -18,6 +18,18 @@ final class AppModel {
     var banner: String?
     /// Bumped when a weight is logged so the Dashboard sparkline reloads.
     var weightsVersion = 0
+    /// Set after a password-reset link signed the user in; RootView then asks for the new password.
+    var choosingNewPassword = false
+
+    /// A reset email's link: sign in with its one-time code, then ask for a new password.
+    func openPasswordResetLink(_ url: URL) async {
+        do {
+            try await Backend.shared.openPasswordResetLink(url)
+            choosingNewPassword = true
+        } catch {
+            banner = "That reset link didn't work (\(error.localizedDescription)). Links expire after an hour; request a new one."
+        }
+    }
 
     struct DoctorCredentials { var specialty: String; var license: String }
     /// Set by sign-up before the account exists; written to the doctor profile on first load (retried by refresh()).

@@ -62,6 +62,29 @@ final class Backend {
         try await run { try await client.auth.signOut() }
     }
 
+    // MARK: Password reset
+
+    /// Where the reset email's link sends the user: back into the app (handled by `AppURLHandler`).
+    /// Must be listed under Authentication › URL Configuration › Redirect URLs in Supabase.
+    static let passwordResetURL = URL(string: "nutravision://auth/reset")!
+
+    static func isPasswordResetLink(_ url: URL) -> Bool {
+        url.scheme == passwordResetURL.scheme && url.host == passwordResetURL.host && url.path == passwordResetURL.path
+    }
+
+    func sendPasswordReset(email: String) async throws {
+        try await run { try await client.auth.resetPasswordForEmail(email, redirectTo: Self.passwordResetURL) }
+    }
+
+    /// Signs in with the one-time code in the reset link, so the new password can be saved.
+    func openPasswordResetLink(_ url: URL) async throws {
+        try await run { _ = try await client.auth.session(from: url) }
+    }
+
+    func setPassword(_ password: String) async throws {
+        try await run { _ = try await client.auth.update(user: UserAttributes(password: password)) }
+    }
+
     /// Deletes the signed-in user and, through cascades, everything they own (`delete_my_account`),
     /// then drops the session on this device. The server no longer knows the session, so a failure
     /// telling it about the sign-out is expected and ignored.

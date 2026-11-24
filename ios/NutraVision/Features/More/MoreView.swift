@@ -35,6 +35,7 @@ struct MoreView: View {
                                 }
                             }
                             NavigationLink("Weight history") { WeightHistoryView() }
+                            NavigationLink("Reminders") { RemindersView() }
                             NavigationLink("Conditions") { ConditionLibraryView() }
                             NavigationLink("Diet Plans") { DietPlansView() }
                             NavigationLink("Glasses") { GlassesSettingsView() }

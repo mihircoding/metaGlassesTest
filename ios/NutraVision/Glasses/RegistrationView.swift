@@ -1,5 +1,6 @@
 //
-// Handles Meta AI app callbacks (same pattern as Meta’s CameraAccess sample).
+// The app's one URL handler: Meta AI app callbacks (same pattern as Meta’s CameraAccess sample)
+// and Supabase password-reset links. One handler, so each URL is routed exactly once.
 //
 
 import MWDATCore
@@ -7,10 +8,15 @@ import SwiftUI
 
 struct RegistrationView: View {
     let viewModel: WearablesViewModel
+    @Environment(AppModel.self) private var app
 
     var body: some View {
         EmptyView()
             .onOpenURL { url in
+                if Backend.isPasswordResetLink(url) {
+                    Task { await app.openPasswordResetLink(url) }
+                    return
+                }
                 guard
                     let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
                     components.queryItems?.contains(where: { $0.name == "metaWearablesAction" }) == true

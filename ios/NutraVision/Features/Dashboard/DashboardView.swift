@@ -10,6 +10,12 @@ struct DashboardView: View {
     @State private var careTeam = CareTeamModel()
     @State private var steps: Int?
     @State private var activeKcal: Double?
+    /// When food was logged over the last 90 days before today; today's logs come live from `app.today`.
+    @State private var earlierLogTimes: [Date] = []
+
+    private var streak: Int {
+        LoggingStreak.days(logged: earlierLogTimes + (app.today?.logs.map(\.loggedAt) ?? []), today: Date())
+    }
 
     private var consumed: Nutrients { app.today?.consumed ?? .zero }
     private var exercise: Double { app.today?.exerciseKcal ?? 0 }
@@ -56,6 +62,7 @@ struct DashboardView: View {
                             healthTile("Active energy", activeKcal.map { "\(Int($0.rounded())) kcal" } ?? "–", "Apple Health")
                         }
                     }
+                    if streak >= 2 { streakCard }
                     weightCard
                 }
                 .padding()
@@ -65,12 +72,46 @@ struct DashboardView: View {
                 await app.refresh()
                 await careTeam.load()
                 await loadWeights()
+                await loadEarlierLogs()
             }
+            .task { await loadEarlierLogs() }
             .task(id: app.weightsVersion) { await loadWeights() }
             .task(id: app.today?.consumed.kcal) { await loadHealth() }  // display only, not added to the goal
             .onAppear { Task { await loadHealth() } }  // after connecting from More
             .onAppear { Task { await careTeam.load() } }  // reload when returning from Care Team
             .fullScreenCover(item: $glassesMode) { mode in GlassesModeView(useGlasses: mode == .glasses) }
+        }
+    }
+
+    /// "From 84.1 kg to 82.0 kg", for VoiceOver.
+    private var weightSummary: String {
+        guard let first = weights.first, let last = weights.last else { return "" }
+        let f = { (kg: Double) in kg.formatted(.number.precision(.fractionLength(1))) }
+        return "From \(f(first.weightKg)) kg to \(f(last.weightKg)) kg"
+    }
+
+    private var streakCard: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "flame.fill").font(.title3).foregroundStyle(.orange)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(streak)-day logging streak").font(.subheadline.weight(.semibold))
+                Text(app.today?.logs.isEmpty == false ? "Logged today. Keep it going!" : "Log something today to keep it going.")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .padding(12)
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+        .accessibilityElement(children: .combine)
+    }
+
+    /// Best effort: without it the streak card just stays hidden.
+    private func loadEarlierLogs() async {
+        guard let userId = Backend.shared.userId else { return }
+        let startOfToday = Calendar.current.startOfDay(for: Date())
+        guard let from = Calendar.current.date(byAdding: .day, value: -90, to: startOfToday) else { return }
+        if let logs = try? await Backend.shared.foodLogs(userId: userId, from: from, to: startOfToday) {
+            earlierLogTimes = logs.map(\.loggedAt)
         }
     }
 
@@ -140,7 +181,16 @@ struct DashboardView: View {
                             .foregroundStyle(Theme.accent)
                     }
                     .chartYScale(domain: .automatic(includesZero: false))
+                    // Three date labels fit; four ran off the edge ("Nov…").
+                    .chartXAxis {
+                        AxisMarks(values: .automatic(desiredCount: 3)) { _ in
+                            AxisGridLine()
+                            AxisValueLabel(format: .dateTime.month(.abbreviated).day())
+                        }
+                    }
                     .frame(height: 80)
+                    .accessibilityLabel("Weight over the last 30 days")
+                    .accessibilityValue(weightSummary)
                 }
                 .padding(12)
                 .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))

@@ -11,6 +11,8 @@ struct PatientDetailView: View {
 
     @State private var segment = Segment.diary
     @State private var sending = false
+    /// The last 30 days as a CSV file, prepared when the screen opens so the share button works at once.
+    @State private var export: URL?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -37,8 +39,16 @@ struct PatientDetailView: View {
             ToolbarItem(placement: .primaryAction) {
                 Button("Send recommendation") { sending = true }
             }
+            if let export {
+                ToolbarItem(placement: .secondaryAction) {
+                    ShareLink(item: export) {
+                        Label("Export last \(DiaryExport.days) days (CSV)", systemImage: "square.and.arrow.up")
+                    }
+                }
+            }
         }
         .sheet(isPresented: $sending) { SendRecommendationView(patient: patient) }
+        .task { export = try? await DiaryExport.file(for: patient) }  // no button if it fails
     }
 }
 

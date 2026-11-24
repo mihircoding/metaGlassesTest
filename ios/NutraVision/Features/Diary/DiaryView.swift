@@ -16,6 +16,8 @@ struct DiaryView: View {
     @State private var addTarget: AddTarget?
     @State private var editing: FoodLogRow?
     @State private var showExercise = false
+    /// The meal being copied from the day before, while it runs.
+    @State private var copying: Meal?
 
     private struct AddTarget: Identifiable {
         let meal: Meal
@@ -151,6 +153,14 @@ struct DiaryView: View {
             }
             if !readOnly {
                 Button("Add Food") { addTarget = AddTarget(meal: meal) }
+                if rows.isEmpty {
+                    Button {
+                        Task { await copyFromPreviousDay(meal) }
+                    } label: {
+                        Label("Copy from \(previousDayName)", systemImage: "doc.on.doc")
+                    }
+                    .disabled(copying != nil)
+                }
             }
         } header: {
             HStack { Text(meal.title); Spacer(); Text("\(Int(kcal.rounded())) kcal") }
@@ -198,6 +208,36 @@ struct DiaryView: View {
             await HealthSync.shared.remove(row.id)
             await reload()
             if userId == Backend.shared.userId { await app.refresh() }
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    private var previousDayName: String {
+        Calendar.current.isDateInToday(date) ? "yesterday" : "the day before"
+    }
+
+    /// Logs the same foods as the day before's `meal` on this day: most people eat the same breakfast often.
+    private func copyFromPreviousDay(_ meal: Meal) async {
+        guard let previous = Calendar.current.date(byAdding: .day, value: -1, to: date) else { return }
+        copying = meal
+        defer { copying = nil }
+        do {
+            let source = try await Backend.shared.foodLogs(userId: userId, day: previous).filter { $0.meal == meal }
+            guard !source.isEmpty else {
+                error = "Nothing was logged for \(meal.title.lowercased()) \(previousDayName)."
+                return
+            }
+            let loggedAt = FoodLogRow.loggedAt(for: date)
+            let copies = source.map { row in
+                var copy = row
+                copy.id = UUID()
+                copy.loggedAt = loggedAt
+                copy.scanId = nil
+                return copy
+            }
+            try await app.addLogs(copies)
+            await reload()
         } catch {
             self.error = error.localizedDescription
         }

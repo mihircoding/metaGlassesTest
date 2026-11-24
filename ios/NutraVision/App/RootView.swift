@@ -14,6 +14,9 @@ struct RootView: View {
             }
         }
         .tint(Theme.accent)
+        .sheet(isPresented: Binding(get: { app.choosingNewPassword }, set: { app.choosingNewPassword = $0 })) {
+            NewPasswordView()
+        }
         .onChange(of: app.phase, initial: true) { _, phase in
             startupLog.debug("root view showing \(String(describing: phase), privacy: .public)")
         }
