@@ -105,6 +105,21 @@ final class ScreenTourTests: XCTestCase {
                 }
                 app.buttons["Cancel"].tap()
             }
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+        }
+        // A digestive condition, with its recipe ideas.
+        let conditions = app.buttons["Conditions"].firstMatch
+        if conditions.waitForExistence(timeout: 3) {
+            conditions.tap()
+            let ibd = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "IBD")).firstMatch
+            if !ibd.waitForExistence(timeout: 3) { app.swipeUp() }
+            if ibd.exists {
+                ibd.tap()
+                sleep(1)
+                for _ in 0..<3 where !app.staticTexts["Recipe ideas"].exists && !app.staticTexts["RECIPE IDEAS"].exists { app.swipeUp() }
+                sleep(1)
+                snap("29b-condition-recipes")
+            }
         }
     }
 

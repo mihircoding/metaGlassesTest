@@ -46,7 +46,8 @@ extension ConditionCatalog {
         "https://www.niddk.nih.gov/health-information/liver-disease/cirrhosis/eating-diet-nutrition")]
     case "celiac":
       return [GuidanceSource("Eating, Diet, & Nutrition for Celiac Disease", "NIDDK, National Institutes of Health",
-        "https://www.niddk.nih.gov/health-information/digestive-diseases/celiac-disease/eating-diet-nutrition")]
+        "https://www.niddk.nih.gov/health-information/digestive-diseases/celiac-disease/eating-diet-nutrition"),
+        GuidanceSource("Celiac disease", "GI Nutrition Foundation", "https://www.ginutritionfoundation.org/celiac-disease")]
     case "weight_loss":
       return [GuidanceSource("Weight Management", "NIDDK, National Institutes of Health",
         "https://www.niddk.nih.gov/health-information/weight-management"), dietaryGuidelines]
@@ -56,7 +57,21 @@ extension ConditionCatalog {
     case "ibs":
       return [GuidanceSource("Eating, Diet, & Nutrition for Irritable Bowel Syndrome", "NIDDK, National Institutes of Health",
         "https://www.niddk.nih.gov/health-information/digestive-diseases/irritable-bowel-syndrome/eating-diet-nutrition"),
-        GuidanceSource("The low FODMAP diet", "Monash University", "https://www.monashfodmap.com/")]
+        GuidanceSource("The low FODMAP diet", "Monash University", "https://www.monashfodmap.com/"),
+        GuidanceSource("Dietary options for IBS", "GI Nutrition Foundation",
+        "https://www.ginutritionfoundation.org/dietary-options-overview-ibs")]
+    case "ibd":
+      return [GuidanceSource("Eating, Diet, & Nutrition for Crohn's Disease", "NIDDK, National Institutes of Health",
+        "https://www.niddk.nih.gov/health-information/digestive-diseases/crohns-disease/eating-diet-nutrition"),
+        GuidanceSource("Eating, Diet, & Nutrition for Ulcerative Colitis", "NIDDK, National Institutes of Health",
+        "https://www.niddk.nih.gov/health-information/digestive-diseases/ulcerative-colitis/eating-diet-nutrition"),
+        GuidanceSource("Dietary options for IBD", "GI Nutrition Foundation",
+        "https://www.ginutritionfoundation.org/dietary-options-for-ibd")]
+    case "eoe":
+      return [GuidanceSource("Eosinophilic Esophagitis", "MedlinePlus, National Library of Medicine",
+        "https://medlineplus.gov/eosinophilicesophagitis.html"),
+        GuidanceSource("Eosinophilic Esophagitis (EoE)", "GI Nutrition Foundation",
+        "https://www.ginutritionfoundation.org/eosinophilic-esophagitis")]
     case "bodybuilding":
       return [GuidanceSource("International Society of Sports Nutrition Position Stand: protein and exercise (2017)",
         "Journal of the International Society of Sports Nutrition", "https://doi.org/10.1186/s12970-017-0177-8")]

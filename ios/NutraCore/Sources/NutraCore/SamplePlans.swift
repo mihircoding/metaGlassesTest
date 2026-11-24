@@ -96,10 +96,16 @@ enum SamplePlans {
   private static let blueberries = f("Blueberries", "1 cup", 148, 84, 1.1, 21, 0.5, 0, 1, 3.6, 15)
   private static let eggWhites = f("Egg whites", "4 large", 132, 68, 14.4, 0.9, 0.2, 0, 220, 0, 0.9)
   private static let whey = f("Whey protein shake", "1 scoop", 30, 120, 24, 3, 1.5, 1, 50, 0, 2)
+  private static let turkey = f("Ground turkey, cooked", "120 g", 120, 211, 28.3, 0, 10, 2.6, 86, 0, 0)
   private static let pasta = f("Spaghetti, cooked", "1 cup", 140, 220, 8, 43, 1.3, 0.2, 1, 2.5, 0.8)
 
   // kcal 1582, sodium 458
   static let base = day([oats, banana], [chicken, brownRice, salad], [salmon, sweetPotato, broccoli], [yogurt, blueberries, almonds])
+  // kcal 1577, sodium 543: soft, well-cooked foods that are easy on a sore gut
+  static let ibd = day([eggs, oats], [chicken, whiteRice, oil], [salmon, sweetPotato, broccoli], [yogurt, banana])
+  // kcal 1642, sodium 391: no milk, wheat, egg, soy, nuts or seafood (oats should be certified gluten-free)
+  static let eoe = day([oats, banana, blueberries], [chicken, quinoa, salad, oil], [turkey, sweetPotato, broccoli, whiteRice],
+                       [apple])
   // kcal 1742, sodium 522
   static let diabetes = day([eggs, oats, blueberries], [chicken, quinoa, salad], [salmon, broccoli, brownRice], [yogurt, almonds])
   // kcal 1467, sodium 341

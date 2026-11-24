@@ -85,6 +85,7 @@ public enum HealthVerdict {
       case .gluten: add(.bad, "May contain gluten")
       case .pregnancyAvoid: add(.bad, "Not advised during pregnancy")
       case .highFodmap: add(.caution, "High-FODMAP ingredient")
+      case .eoeTriggers: add(.caution, "Common EoE trigger food")
       }
     }
 

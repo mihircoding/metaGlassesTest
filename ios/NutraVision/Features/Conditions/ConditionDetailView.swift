@@ -45,6 +45,19 @@ struct ConditionDetailView: View {
                 Button(inConditions ? "In my conditions" : "Add to my conditions") { addCondition() }
                     .buttonStyle(.bordered).disabled(busy || inConditions || app.profile == nil)
             }
+            let recipes = ConditionCatalog.recipes(for: condition.id)
+            if !recipes.isEmpty {
+                Section {
+                    ForEach(recipes) { RecipeRow(recipe: $0) }
+                    Link("More recipes from the \(ConditionCatalog.recipePublisher)", destination: ConditionCatalog.recipeIndex)
+                        .font(.subheadline)
+                } header: {
+                    Text("Recipe ideas")
+                } footer: {
+                    Text((ConditionCatalog.recipeNote(for: condition.id) ?? "")
+                         + " Recipes by the \(ConditionCatalog.recipePublisher); tap one to open it.")
+                }
+            }
             Section {
                 ForEach(ConditionCatalog.sources(for: condition.id), id: \.self) { SourceLink(source: $0) }
                 SourceLink(source: ConditionCatalog.calorieMethod)
