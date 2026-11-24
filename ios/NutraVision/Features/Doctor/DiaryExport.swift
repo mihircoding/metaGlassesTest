@@ -2,6 +2,7 @@ import Foundation
 import NutraCore
 
 /// A patient's food log as a CSV file a doctor can open in a spreadsheet or attach to a chart note.
+@MainActor
 enum DiaryExport {
     static let days = 30
 

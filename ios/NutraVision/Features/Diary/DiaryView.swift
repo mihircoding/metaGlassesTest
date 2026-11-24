@@ -176,13 +176,20 @@ struct DiaryView: View {
             Circle().fill(verdict.level.color).frame(width: 10, height: 10).accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text(row.name)
-                Text("\(row.servingDesc) × \(row.servings.formatted(.number.precision(.fractionLength(0...2))))")
+                Text(row.servings == 1 ? row.servingDesc
+                     : "\(row.servingDesc) × \(row.servings.formatted(.number.precision(.fractionLength(0...2))))")
                     .font(.footnote).foregroundStyle(.secondary)
+                // Say why a food is flagged; the dot alone left patients and doctors guessing.
+                if verdict.level != .goodFit, let reason = verdict.reasons.first {
+                    Text(reason.text).font(.caption).foregroundStyle(verdict.level.color)
+                }
             }
             Spacer()
             Text("\(Int(row.total.kcal.rounded()))").foregroundStyle(.secondary)
         }
         .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityValue(verdict.level.rawValue)
     }
 
     // MARK: Actions

@@ -73,6 +73,20 @@ final class PatientsModel {
 
 struct PatientsView: View {
     @State private var model = PatientsModel()
+    @State private var query = ""
+    @State private var flaggedFirst = false
+
+    /// Filtered by name or email; optionally the patients with the most flags first.
+    private var shown: [PatientSummary] {
+        let q = query.trimmingCharacters(in: .whitespaces)
+        let matching = q.isEmpty ? model.patients : model.patients.filter {
+            $0.profile.fullName.localizedCaseInsensitiveContains(q) || $0.profile.email.localizedCaseInsensitiveContains(q)
+        }
+        guard flaggedFirst else { return matching }
+        return matching.enumerated()
+            .sorted { ($0.element.flags.count, -$0.offset) > ($1.element.flags.count, -$1.offset) }
+            .map(\.element)
+    }
 
     var body: some View {
         NavigationStack {
@@ -83,12 +97,29 @@ struct PatientsView: View {
                 if model.loaded && model.error == nil && model.patients.isEmpty {
                     Section { Text("No patients yet. Send a request from the Requests tab.").foregroundStyle(.secondary) }
                 }
-                ForEach(model.patients) { patient in
+                if !query.isEmpty && shown.isEmpty && !model.patients.isEmpty {
+                    Section { Text("No patients match \u{201C}\(query)\u{201D}.").foregroundStyle(.secondary) }
+                }
+                ForEach(shown) { patient in
                     NavigationLink { PatientDetailView(patient: patient.profile) } label: { row(patient) }
                 }
             }
             .overlay { if !model.loaded { ProgressView() } }
             .navigationTitle("Patients")
+            .searchable(text: $query, prompt: "Search patients")
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Menu {
+                        Picker("Sort", selection: $flaggedFirst) {
+                            Text("By name").tag(false)
+                            Text("Needs attention first").tag(true)
+                        }
+                    } label: {
+                        Image(systemName: "arrow.up.arrow.down")
+                    }
+                    .accessibilityLabel("Sort patients")
+                }
+            }
             .task { await model.load() }
             .refreshable { await model.load() }
         }

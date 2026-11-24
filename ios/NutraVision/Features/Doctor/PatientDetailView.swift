@@ -1,12 +1,12 @@
 import NutraCore
 import SwiftUI
 
-/// A linked patient, read-only: Diary | Progress | Weight & workouts | Plan & history.
+/// A linked patient, read-only: Diary | Progress | Body (weigh-ins and workouts) | Plan & history.
 struct PatientDetailView: View {
     let patient: ProfileRow
 
     private enum Segment: String, CaseIterable {
-        case diary = "Diary", progress = "Progress", bodyLog = "Weight & workouts", plan = "Plan & history"
+        case diary = "Diary", progress = "Progress", bodyLog = "Body", plan = "Plan & history"
     }
 
     @State private var segment = Segment.diary
