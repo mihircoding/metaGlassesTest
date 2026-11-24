@@ -11,6 +11,7 @@ insert into auth.users (id, email, raw_user_meta_data) values
   ('d1000000-0000-4000-8000-000000000002', 'rls-doctor2@test.local',  '{"role":"doctor","full_name":"Dr Other"}'),
   ('a1000000-0000-4000-8000-000000000001', 'rls-patient@test.local',  '{"role":"patient","full_name":"Pat RLS"}'),
   ('a1000000-0000-4000-8000-000000000002', 'rls-stranger@test.local', '{"role":"patient","full_name":"Stranger"}');
+update profiles set verified_at = now() where role = 'doctor';  -- verification has its own test in sql.test.mjs
 set local role authenticated;
 
 select rls_test.as_user('a1000000-0000-4000-8000-000000000001');

@@ -72,6 +72,7 @@ final class PatientsModel {
 }
 
 struct PatientsView: View {
+    @Environment(AppModel.self) private var app
     @State private var model = PatientsModel()
     @State private var query = ""
     @State private var flaggedFirst = false
@@ -94,7 +95,9 @@ struct PatientsView: View {
                 if let error = model.error {
                     Section { InlineError(message: error) { Task { await model.load() } } }
                 }
-                if model.loaded && model.error == nil && model.patients.isEmpty {
+                if app.profile?.isVerified == false {
+                    Section { VerificationNotice() }
+                } else if model.loaded && model.error == nil && model.patients.isEmpty {
                     Section { Text("No patients yet. Send a request from the Requests tab.").foregroundStyle(.secondary) }
                 }
                 if !query.isEmpty && shown.isEmpty && !model.patients.isEmpty {
@@ -121,7 +124,10 @@ struct PatientsView: View {
                 }
             }
             .task { await model.load() }
-            .refreshable { await model.load() }
+            .refreshable {
+                await model.load()
+                if app.profile?.isVerified == false { await app.refresh() }
+            }
         }
     }
 

@@ -15,6 +15,13 @@ struct MoreView: View {
                         VStack(alignment: .leading) {
                             Text(profile.fullName).font(.headline)
                             Text(profile.email).font(.subheadline).foregroundStyle(.secondary)
+                            if profile.role == .doctor {
+                                Label(profile.isVerified ? "License verified" : "License verification pending",
+                                      systemImage: profile.isVerified ? "checkmark.seal.fill" : "clock")
+                                    .font(.footnote)
+                                    .foregroundStyle(profile.isVerified ? Theme.good : Theme.moderation)
+                                    .padding(.top, 2)
+                            }
                         }
                     }
                     if profile.role == .patient {

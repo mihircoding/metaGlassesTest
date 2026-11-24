@@ -34,6 +34,8 @@ struct ProfileRow: Codable, Identifiable, Equatable {
     var addExerciseKcal: Bool
     var specialty: String?
     var licenseNumber: String?
+    /// Doctors only: an administrator has checked the license (`verified_at` is set). Read-only here.
+    var isVerified: Bool
 
     var bodyStats: BodyStats {
         BodyStats(sex: sex, birthDate: birthDate.flatMap(Self.date(fromDay:)), heightCm: heightCm,
@@ -58,6 +60,7 @@ struct ProfileRow: Codable, Identifiable, Equatable {
         case targetsSource = "targets_source"
         case addExerciseKcal = "add_exercise_kcal"
         case licenseNumber = "license_number"
+        case verifiedAt = "verified_at"
     }
 }
 
@@ -82,9 +85,11 @@ extension ProfileRow {
         addExerciseKcal = try c.decode(Bool.self, forKey: .addExerciseKcal)
         specialty = try c.decodeIfPresent(String.self, forKey: .specialty)
         licenseNumber = try c.decodeIfPresent(String.self, forKey: .licenseNumber)
+        // No `verified_at` key at all means the backend predates doctor verification (migration 0004).
+        isVerified = try !c.contains(.verifiedAt) || !c.decodeNil(forKey: .verifiedAt)
     }
 
-    /// Every editable column, nil as null. `role` and `email` are never sent: a trigger rejects changing them.
+    /// Every editable column, nil as null. `role`, `email` and `verified_at` are never sent: a trigger rejects changing them.
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(id, forKey: .id)

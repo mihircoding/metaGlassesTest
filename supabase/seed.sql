@@ -25,7 +25,7 @@ where id in ('a0000000-0000-4000-8000-000000000001', 'a0000000-0000-4000-8000-00
   'a0000000-0000-4000-8000-000000000003', 'a0000000-0000-4000-8000-000000000004');
 
 -- ---------------------------------------------------------------- profiles (created by trigger; update only)
-update profiles set specialty = 'Endocrinology', license_number = 'MD-48213'
+update profiles set specialty = 'Endocrinology', license_number = 'MD-48213', verified_at = now()
  where id = 'a0000000-0000-4000-8000-000000000001';
 
 -- Maria: F, 1968-03-15 (58), 165 cm, 82 kg, light, -0.4 kg/wk -> 1400.25*1.375-440 = 1485 -> 1490 kcal

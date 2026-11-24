@@ -1,6 +1,7 @@
 import Anthropic from "npm:@anthropic-ai/sdk@0.137.0";
 import { MODEL, OUTPUT_SCHEMA, SYSTEM_PROMPT, parseClaudeFood } from "../_shared/claude.ts";
 import { handleAnalyzeFood, type CallClaude } from "../_shared/analyze.ts";
+import { claimScanVia } from "../_shared/quota.ts";
 
 const client = new Anthropic({ apiKey: Deno.env.get("ANTHROPIC_API_KEY") });
 const callClaude: CallClaude = async (data, mediaType) => {
@@ -18,4 +19,5 @@ const callClaude: CallClaude = async (data, mediaType) => {
   const text = res.content.find((b) => b.type === "text");
   return parseClaudeFood(text && "text" in text ? text.text : "");
 };
-Deno.serve((req) => handleAnalyzeFood(req, { fdcKey: Deno.env.get("FDC_API_KEY") || "DEMO_KEY", fetchFn: fetch, callClaude }));
+const claimScan = claimScanVia(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, fetch);
+Deno.serve((req) => handleAnalyzeFood(req, { fdcKey: Deno.env.get("FDC_API_KEY") || "DEMO_KEY", fetchFn: fetch, callClaude, claimScan }));
