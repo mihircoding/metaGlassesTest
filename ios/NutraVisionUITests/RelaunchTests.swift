@@ -17,6 +17,11 @@ final class RelaunchTests: XCTestCase {
         let tabBar = app.tabBars.firstMatch
         let welcome = app.buttons["Create account"]
         _ = tabBar.waitForExistence(timeout: 20) || welcome.waitForExistence(timeout: 1)
+        // Another test may have left a new account on onboarding; start from the welcome screen.
+        if !tabBar.exists && !welcome.exists && app.buttons["Sign out"].exists {
+            app.buttons["Sign out"].tap()
+            _ = welcome.waitForExistence(timeout: 15)
+        }
         if !tabBar.exists { signInAsMaria() }
         // Without a session every relaunch lands on the welcome screen, which would read as a hang.
         guard tabBar.waitForExistence(timeout: 5) else {

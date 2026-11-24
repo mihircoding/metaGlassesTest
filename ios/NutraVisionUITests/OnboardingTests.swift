@@ -64,8 +64,18 @@ final class OnboardingTests: XCTestCase {
 
     private func type(_ text: String, into field: XCUIElement) {
         XCTAssertTrue(field.waitForExistence(timeout: 5), "missing field \(field)")
-        field.tap()
+        // The keyboard from the previous field can leave this one reported as not hittable.
+        let done = app.toolbars.buttons["Done"].firstMatch
+        if !field.isHittable && done.exists { done.tap() }
+        if field.isHittable { field.tap() } else { field.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap() }
         field.typeText(text)
+    }
+
+    /// A failure part-way leaves the new account signed in on onboarding, which would start the
+    /// next test there; sign it out (the account itself stays on the demo backend).
+    override func tearDownWithError() throws {
+        let signOut = app.buttons["Sign out"]
+        if app.state == .runningForeground && !app.tabBars.firstMatch.exists && signOut.exists { signOut.tap() }
     }
 
     private func snap(_ name: String) {
