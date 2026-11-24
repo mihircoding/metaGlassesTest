@@ -27,8 +27,21 @@ final class AccountDeletionTests: XCTestCase {
         if specialty.exists { specialty.tap(); specialty.typeText("Testing") }
         let license = app.textFields["License #"]
         if license.exists { license.tap(); license.typeText("TEST123") }
-        app.buttons.matching(identifier: "Create account").allElementsBoundByIndex.last?.tap()
-        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 90), "sign-up did not reach the doctor tabs")
+        // The form's own button (the welcome screen's "Create account" may still be in the hierarchy).
+        let submit = app.collectionViews.buttons["Create account"].firstMatch
+        XCTAssertTrue(submit.waitForExistence(timeout: 5), "no Create account button in the form")
+        if !submit.isEnabled {
+            snap("account-deletion-form-invalid")
+            print("DELETE-DEBUG form not valid:\n\(app.debugDescription)")
+        }
+        submit.tap()
+        dismissSavePassword()  // can appear before the tabs and cover them
+        if !app.tabBars.firstMatch.waitForExistence(timeout: 90) {
+            snap("account-deletion-signup-stuck")
+            print("DELETE-DEBUG sign-up did not finish:\n\(app.debugDescription)")
+            XCTFail("sign-up did not reach the doctor tabs")
+            return
+        }
         dismissSavePassword()
 
         app.tabBars.firstMatch.buttons["More"].tap()
@@ -61,6 +74,17 @@ final class AccountDeletionTests: XCTestCase {
         let passwordField = app.secureTextFields["Password (8+ characters)"]
         passwordField.tap()
         passwordField.typeText(password)
+    }
+
+    private func snap(_ name: String) {
+        let shot = XCUIScreen.main.screenshot()
+        let attachment = XCTAttachment(screenshot: shot)
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        if let dir = ProcessInfo.processInfo.environment["SCREENSHOT_DIR"], !dir.isEmpty {
+            try? shot.pngRepresentation.write(to: URL(fileURLWithPath: dir).appendingPathComponent("\(name).png"))
+        }
     }
 
     private func dismissSavePassword() {

@@ -152,7 +152,7 @@ jobs:
       # A screen recording of DemoTour, a paced walk through the patient and doctor screens.
       # Best effort: a failed recording doesn't fail the build.
       - name: Record demo video
-        if: env.DEMO_BACKEND == '1'
+        if: ${{ !cancelled() && env.DEMO_BACKEND == '1' }}
         continue-on-error: true
         working-directory: ios
         run: |
