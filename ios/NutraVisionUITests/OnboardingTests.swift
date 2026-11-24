@@ -71,7 +71,13 @@ final class OnboardingTests: XCTestCase {
         // The keyboard from the previous field can leave this one reported as not hittable.
         let done = app.toolbars.buttons["Done"].firstMatch
         if !field.isHittable && done.exists { done.tap() }
-        if field.isHittable { field.tap() } else { field.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap() }
+        // A tap during a sheet's or keyboard's animation can miss; retry until the field has focus.
+        for _ in 0..<4 {
+            if field.isHittable { field.tap() } else { field.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap() }
+            if (field.value(forKey: "hasKeyboardFocus") as? Bool) == true { break }
+            dismissSavePassword()
+            usleep(500_000)
+        }
         field.typeText(text)
     }
 
