@@ -16,6 +16,9 @@ concurrency:
 
 jobs:
   build:
+    # A pull request from a ci/** branch is already built by its push run; skip the duplicate,
+    # since macOS runners are scarce and a second run doubles the wait.
+    if: github.event_name != 'pull_request' || !startsWith(github.head_ref, 'ci/')
     runs-on: macos-latest
     timeout-minutes: 60
     env:
