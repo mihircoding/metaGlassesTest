@@ -40,26 +40,30 @@ final class OnboardingTests: XCTestCase {
         // Step 2: conditions and goal.
         XCTAssertTrue(app.navigationBars["Step 2 of 3"].waitForExistence(timeout: 5))
         snap("15-onboarding-conditions")
-        app.buttons["Next"].tap()
+        scrollTo(app.buttons["Next"]).tap()  // below the condition list
 
         // Step 3: targets.
         XCTAssertTrue(app.navigationBars["Step 3 of 3"].waitForExistence(timeout: 5))
         snap("16-onboarding-targets")
-        let finish = app.buttons["Finish"]
-        if !finish.isHittable { app.swipeUp() }
-        finish.tap()
+        scrollTo(app.buttons["Finish"]).tap()
         XCTAssertTrue(app.navigationBars["Dashboard"].waitForExistence(timeout: 60), "onboarding did not reach the dashboard")
         snap("17-new-patient-dashboard")
 
         // Clean up: delete the account from More.
         app.tabBars.firstMatch.buttons["More"].tap()
-        let delete = app.buttons["Delete account"]
-        for _ in 0..<3 where !(delete.exists && delete.isHittable) { app.swipeUp() }
-        delete.tap()
+        scrollTo(app.buttons["Delete account"]).tap()
         let confirm = app.buttons["Delete account and all data"]
         XCTAssertTrue(confirm.waitForExistence(timeout: 5))
         confirm.tap()
         XCTAssertTrue(app.buttons["Create account"].waitForExistence(timeout: 90), "deleting did not return to the welcome screen")
+    }
+
+    /// Forms load rows lazily, so a button below the fold doesn't exist until it's scrolled to.
+    @discardableResult
+    private func scrollTo(_ element: XCUIElement) -> XCUIElement {
+        for _ in 0..<8 where !(element.exists && element.isHittable) { app.swipeUp() }
+        XCTAssertTrue(element.exists, "could not scroll to \(element)")
+        return element
     }
 
     private func type(_ text: String, into field: XCUIElement) {
