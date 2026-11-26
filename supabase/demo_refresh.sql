@@ -20,5 +20,9 @@ begin
     update vital_logs set measured_at = measured_at + make_interval(days => shift) where user_id = any(demo);
     update fluid_logs set logged_at = logged_at + make_interval(days => shift) where user_id = any(demo);
   end if;
+  -- symptom_logs exists from migration 0007 on
+  if to_regclass('public.symptom_logs') is not null then
+    update symptom_logs set logged_at = logged_at + make_interval(days => shift) where user_id = any(demo);
+  end if;
   raise notice 'Moved demo data forward % days', shift;
 end $$;

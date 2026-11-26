@@ -109,6 +109,29 @@ final class ScreenTourTests: XCTestCase {
             }
             app.navigationBars.buttons.element(boundBy: 0).tap()
         }
+        // The symptom diary, and the advice for a red-flag symptom (cancelled, never saved).
+        let symptoms = app.buttons["Symptoms"].firstMatch
+        if symptoms.waitForExistence(timeout: 3) {
+            symptoms.tap()
+            sleep(3)
+            snap("28b-patient-symptoms")
+            let log = app.navigationBars["Symptoms"].buttons["Log symptoms"]
+            if log.waitForExistence(timeout: 3) {
+                log.tap()
+                let stuck = app.buttons["Food stuck in throat or chest"]
+                if stuck.waitForExistence(timeout: 3) {
+                    app.buttons["Bloating"].tap()
+                    stuck.tap()
+                    for _ in 0..<3 where !app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "emergency room")).firstMatch.isHittable {
+                        app.swipeUp()
+                    }
+                    sleep(1)
+                    snap("28c-patient-log-symptoms")
+                }
+                app.buttons["Cancel"].tap()
+            }
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+        }
         // A digestive condition, with its recipe ideas.
         let conditions = app.buttons["Conditions"].firstMatch
         if conditions.waitForExistence(timeout: 3) {
@@ -162,6 +185,19 @@ final class ScreenTourTests: XCTestCase {
             app.buttons["Body"].tap()
             sleep(4)
             snap("36-doctor-patient-blood-pressure")
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+        }
+        // Alex has IBS: his symptom diary and the food it points to.
+        let alex = app.staticTexts["Alex Kim"].firstMatch
+        if alex.waitForExistence(timeout: 5) {
+            alex.tap()
+            sleep(3)
+            app.buttons["Body"].tap()
+            sleep(4)
+            let header = app.staticTexts.matching(NSPredicate(format: "label ==[c] %@", "Symptoms, last 30 days")).firstMatch
+            for _ in 0..<4 where !(header.exists && header.isHittable) { app.swipeUp() }
+            sleep(1)
+            snap("37-doctor-patient-symptoms")
             app.navigationBars.buttons.element(boundBy: 0).tap()
         }
 

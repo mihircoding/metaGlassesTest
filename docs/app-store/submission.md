@@ -26,11 +26,13 @@ Everything App Store Connect asks for that isn't code. Fill in the `[brackets]`.
 Log food by photo, barcode or search, see whether each food fits your condition, and share your diary with your doctor.
 
 **Description:**
-NutraVision is a food diary built around health conditions. Tell it about type 2 diabetes, high blood pressure, kidney disease, celiac disease or one of 14 conditions, and every food you log is checked against the limits for that condition.
+NutraVision is a food diary built around health conditions. Tell it about type 2 diabetes, high blood pressure, kidney disease, IBS, celiac disease or any of 16 conditions, and every food you log is checked against the limits for that condition.
 
 - Log food by snapping a photo, scanning a barcode, searching the USDA database, or saying "scan this" through Meta AI glasses.
 - See calories, protein, carbs, fat, saturated fat, sodium and fiber against daily targets made for your body and conditions.
 - Know why a food doesn't fit: too much sodium for DASH, too many carbs for diabetes, gluten for celiac.
+- Log blood pressure, blood sugar and drinks against a fluid limit, with clear advice when a reading is in a dangerous range.
+- Keep a symptom diary for IBS, IBD, celiac disease or EoE, and see which foods were often followed by symptoms. Each digestive condition comes with recipe ideas from the GI Nutrition Foundation.
 - Track weight, workouts and your logging streak. Connect Apple Health to bring in workouts and steps.
 - Share with your doctor. Accept a doctor's request and they can follow your diary, send new targets or a diet plan, and you choose whether to accept.
 - For doctors: a patient list sorted by who needs attention, with each patient's week at a glance and CSV export.

@@ -9,11 +9,11 @@ struct SourceLink: View {
         Link(destination: source.url) {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(source.title).font(.subheadline).foregroundStyle(.primary)
-                    Text(source.publisher).font(.caption).foregroundStyle(.secondary)
+                    Text(source.title).font(.subheadline).foregroundStyle(Color.primary)
+                    Text(source.publisher).font(.caption).foregroundStyle(Color.secondary)
                 }
                 Spacer()
-                Image(systemName: "arrow.up.right.square").foregroundStyle(.secondary).accessibilityHidden(true)
+                Image(systemName: "arrow.up.right.square").foregroundStyle(Color.secondary).accessibilityHidden(true)
             }
         }
         .accessibilityHint("Opens in Safari")

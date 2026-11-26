@@ -20,6 +20,8 @@ final class AppModel {
     var weightsVersion = 0
     /// Bumped when a blood pressure or glucose reading is logged or deleted.
     var vitalsVersion = 0
+    /// Bumped when a symptom diary entry is logged or deleted.
+    var symptomsVersion = 0
     /// Set after a password-reset link signed the user in; RootView then asks for the new password.
     var choosingNewPassword = false
 

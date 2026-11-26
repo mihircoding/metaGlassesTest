@@ -360,6 +360,38 @@ struct ClinicalNoteRow: Codable, Identifiable, Equatable {
     }
 }
 
+/// One symptom diary entry. Unknown symptom names (from a newer app version) are skipped when decoding.
+struct SymptomLogRow: Codable, Identifiable, Equatable {
+    var id = UUID()
+    var userId: UUID
+    var loggedAt: Date
+    var symptoms: [Symptom]
+    var severity: Int
+    var bristol: Int?
+    var note: String?
+
+    var entry: SymptomEntry { SymptomEntry(time: loggedAt, symptoms: symptoms, severity: severity) }
+
+    enum CodingKeys: String, CodingKey {
+        case id, symptoms, severity, bristol, note
+        case userId = "user_id"
+        case loggedAt = "logged_at"
+    }
+}
+
+extension SymptomLogRow {
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        userId = try c.decode(UUID.self, forKey: .userId)
+        loggedAt = try c.decode(Date.self, forKey: .loggedAt)
+        symptoms = try c.decode([String].self, forKey: .symptoms).compactMap(Symptom.init(rawValue:))
+        severity = try c.decode(Int.self, forKey: .severity)
+        bristol = try c.decodeIfPresent(Int.self, forKey: .bristol)
+        note = try c.decodeIfPresent(String.self, forKey: .note)
+    }
+}
+
 enum CareLinkStatus: String, Codable { case pending, accepted, declined, revoked }
 
 struct CareLinkRow: Codable, Identifiable, Equatable {

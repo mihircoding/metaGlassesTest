@@ -293,6 +293,24 @@ final class Backend {
         try await run { try await client.from("fluid_logs").delete().eq("id", value: id).execute() }
     }
 
+    // MARK: Symptom diary
+
+    func symptoms(userId: UUID, from: Date, to: Date) async throws -> [SymptomLogRow] {
+        try await run {
+            try await client.from("symptom_logs").select().eq("user_id", value: userId)
+                .gte("logged_at", value: from).lt("logged_at", value: to)
+                .order("logged_at").execute().value
+        }
+    }
+
+    func insertSymptom(_ symptom: SymptomLogRow) async throws {
+        try await run { try await client.from("symptom_logs").insert(symptom).execute() }
+    }
+
+    func deleteSymptom(id: UUID) async throws {
+        try await run { try await client.from("symptom_logs").delete().eq("id", value: id).execute() }
+    }
+
     // MARK: Clinical notes (doctor only)
 
     func clinicalNotes(patientId: UUID) async throws -> [ClinicalNoteRow] {
@@ -426,6 +444,10 @@ final class Backend {
             let body = try? JSONDecoder().decode(ErrorBody.self, from: data)
             throw BackendError.message(body?.error ?? "Something went wrong. Please try again.")
         } catch let error as PostgrestError {
+            // A table from a migration the server doesn't have yet: PostgREST's text names its schema cache.
+            if error.code == "PGRST205" || error.code == "42P01" {
+                throw BackendError.message("This feature isn't available on the server yet. Please try again later.")
+            }
             throw BackendError.message(error.message)
         } catch let error as AuthError {
             throw BackendError.message(error.message)

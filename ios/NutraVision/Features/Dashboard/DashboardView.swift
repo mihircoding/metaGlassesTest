@@ -16,12 +16,18 @@ struct DashboardView: View {
     @State private var latestBloodPressure: VitalLogRow?
     @State private var latestGlucose: VitalLogRow?
     @AppStorage(GlucoseUnit.storageKey) private var glucoseUnit = GlucoseUnit.mgDl
+    /// The newest symptom diary entry from the last 30 days.
+    @State private var latestSymptom: SymptomLogRow?
 
     /// Conditions where blood pressure or blood sugar is part of routine care.
     private static let vitalsConditions: Set<String> = ["t1_diabetes", "t2_diabetes", "hypertension", "heart_disease", "ckd"]
     private var showsVitals: Bool {
         latestBloodPressure != nil || latestGlucose != nil
             || !Self.vitalsConditions.isDisjoint(with: app.profile?.conditions ?? [])
+    }
+
+    private var showsSymptoms: Bool {
+        latestSymptom != nil || !SymptomDiary.conditions.isDisjoint(with: app.profile?.conditions ?? [])
     }
 
     private var streak: Int {
@@ -75,6 +81,7 @@ struct DashboardView: View {
                     }
                     if streak >= 2 { streakCard }
                     if showsVitals { vitalsCard }
+                    if showsSymptoms { symptomCard }
                     FluidCard()
                     weightCard
                 }
@@ -87,11 +94,13 @@ struct DashboardView: View {
                 await loadWeights()
                 await loadEarlierLogs()
                 await loadVitals()
+                await loadSymptoms()
             }
             // Re-fetched when the day rolls over, so yesterday moves into the history.
             .task(id: DayKey.key(for: app.today?.date ?? Date())) { await loadEarlierLogs() }
             .task(id: app.weightsVersion) { await loadWeights() }
             .task(id: app.vitalsVersion) { await loadVitals() }
+            .task(id: app.symptomsVersion) { await loadSymptoms() }
             .task(id: app.today?.consumed.kcal) { await loadHealth() }  // display only, not added to the goal
             .onAppear { Task { await loadHealth() } }  // after connecting from More
             .onAppear { Task { await careTeam.load() } }  // reload when returning from Care Team
@@ -173,6 +182,44 @@ struct DashboardView: View {
                                                            to: now.addingTimeInterval(86_400)) else { return }
         latestBloodPressure = rows.last { $0.kind == .bloodPressure }
         latestGlucose = rows.last { $0.kind == .glucose }
+    }
+
+    private var symptomCard: some View {
+        NavigationLink { SymptomsView() } label: {
+            HStack(alignment: .top, spacing: 10) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("Symptoms", systemImage: "list.bullet.clipboard").font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.accent2)
+                    if let row = latestSymptom {
+                        Text(row.symptoms.map(\.title).joined(separator: ", ")).font(.subheadline).lineLimit(2)
+                        Text("Last logged \(row.loggedAt.formatted(.relative(presentation: .named)))")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    } else {
+                        Text("How's your digestion today? Tap to log symptoms.").font(.subheadline).foregroundStyle(.secondary)
+                    }
+                }
+                Spacer()
+                if let row = latestSymptom {
+                    CategoryChip(title: "\(row.severity)/10", color: SymptomDiary.severityColor(row.severity))
+                }
+                Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityHint("Shows your symptom diary and lets you log how you feel")
+    }
+
+    /// Best effort: without it the card shows the prompt to log.
+    private func loadSymptoms() async {
+        guard let userId = Backend.shared.userId else { return }
+        let now = Date()
+        guard let rows = try? await Backend.shared.symptoms(userId: userId, from: now.addingTimeInterval(-30 * 86_400),
+                                                             to: now.addingTimeInterval(86_400)) else { return }
+        latestSymptom = rows.last
     }
 
     private var exerciseTile: some View {

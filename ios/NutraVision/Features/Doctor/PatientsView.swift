@@ -30,6 +30,7 @@ private struct PatientWeek: Sendable {
     let logs: [FoodLogRow]
     let vitals: [VitalLogRow]
     let fluids: [FluidLogRow]
+    let symptoms: [SymptomLogRow]
 }
 
 @Observable
@@ -56,7 +57,9 @@ final class PatientsModel {
                             logs: try await Backend.shared.foodLogs(userId: id, from: from, to: end),
                             // Best effort, so the list still works on a backend without migration 0006.
                             vitals: (try? await Backend.shared.vitals(userId: id, from: from, to: end)) ?? [],
-                            fluids: (try? await Backend.shared.fluids(userId: id, from: from, to: end)) ?? [])
+                            fluids: (try? await Backend.shared.fluids(userId: id, from: from, to: end)) ?? [],
+                            // and without 0007
+                            symptoms: (try? await Backend.shared.symptoms(userId: id, from: from, to: end)) ?? [])
                         return (id, week)
                     }
                 }
@@ -66,7 +69,7 @@ final class PatientsModel {
             }
             var result: [PatientSummary] = []
             for profile in profiles.sorted(by: { $0.fullName < $1.fullName }) {
-                let week = weekByPatient[profile.id] ?? PatientWeek(logs: [], vitals: [], fluids: [])
+                let week = weekByPatient[profile.id] ?? PatientWeek(logs: [], vitals: [], fluids: [], symptoms: [])
                 let logs = week.logs
                 let byDay = Dictionary(grouping: logs, by: { DayKey.key(for: $0.loggedAt) })
                 let totals: [Nutrients] = byDay.sorted { $0.key < $1.key }.map { $0.value.map(\.total).sum() }
@@ -77,6 +80,7 @@ final class PatientsModel {
                     bloodPressure: week.vitals.compactMap { v in v.systolic.flatMap { s in v.diastolic.map { (systolic: s, diastolic: $0) } } },
                     glucose: week.vitals.compactMap { v in v.glucoseMgDl.map { (mgDl: $0, context: v.glucoseContext ?? .other) } },
                     fluidDays: fluidDays, fluidLimitMl: profile.fluidLimitMl)
+                    + SymptomFlags.flags(entries: week.symptoms.map(\.entry), days: 7)
                     + PatientFlags.flags(days: totals, targets: profile.targets, dailyGoalKcal: profile.targets.kcal)
                 let todayKcal: Double = byDay[todayKey].map { $0.map(\.total).sum().kcal } ?? 0
                 let average: Double? = totals.isEmpty ? nil : totals.reduce(0) { $0 + $1.kcal } / Double(totals.count)

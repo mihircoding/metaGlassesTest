@@ -55,7 +55,8 @@ struct PatientDetailView: View {
     }
 }
 
-/// Last 90 days of blood pressure, blood sugar, weigh-ins and workouts, and 14 days of fluids; newest first.
+/// Last 90 days of blood pressure, blood sugar, weigh-ins and workouts, 30 days of symptoms and
+/// 14 days of fluids; newest first.
 private struct PatientBodyList: View {
     let patient: ProfileRow
     private var userId: UUID { patient.id }
@@ -66,6 +67,9 @@ private struct PatientBodyList: View {
     /// Oldest first.
     @State private var vitals: [VitalLogRow] = []
     @State private var fluidDays: [FluidDay] = []
+    /// Oldest first. Nil when the server has no symptom diary (before migration 0007).
+    @State private var symptoms: [SymptomLogRow]?
+    @State private var triggers = SymptomTriggers.Result(candidates: [], baseline: 0)
     @State private var error: String?
 
     private struct FluidDay: Identifiable {
@@ -91,6 +95,23 @@ private struct PatientBodyList: View {
                 if glucose.isEmpty { Text("No readings").foregroundStyle(.secondary) }
                 if glucose.count >= 2 { GlucoseChart(readings: glucose, unit: unit) }
                 ForEach(glucose.reversed().prefix(20)) { VitalRowView(vital: $0, unit: unit) }
+            }
+            if let symptoms {
+                Section {
+                    if symptoms.isEmpty { Text("No symptoms logged").foregroundStyle(.secondary) }
+                    if !symptoms.isEmpty { SymptomChart(rows: symptoms) }
+                    if !triggers.candidates.isEmpty {
+                        Text("Often followed by symptoms").font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
+                        TriggerRows(result: triggers)
+                    }
+                    ForEach(symptoms.reversed().prefix(20)) { SymptomRowView(row: $0) }
+                } header: {
+                    Text("Symptoms, last 30 days")
+                } footer: {
+                    if !triggers.candidates.isEmpty {
+                        Text("Foods logged in the 6 hours before symptoms, compared with the patient's other meals. A pattern to discuss, not a diagnosis.")
+                    }
+                }
             }
             Section {
                 if fluidDays.isEmpty { Text("No drinks logged").foregroundStyle(.secondary) }
@@ -154,6 +175,14 @@ private struct PatientBodyList: View {
             let byDay = Dictionary(grouping: drinks) { Calendar.current.startOfDay(for: $0.loggedAt) }
             fluidDays = byDay.map { day, rows in FluidDay(day: day, ml: rows.reduce(0) { $0 + $1.ml }) }
                 .sorted { $0.day > $1.day }
+            // Best effort, so the tab still works on a backend without migration 0007.
+            let symptomsFrom = Calendar.current.date(byAdding: .day, value: -30, to: end) ?? end
+            symptoms = try? await Backend.shared.symptoms(userId: userId, from: symptomsFrom, to: end)
+            if let symptoms, !symptoms.isEmpty,
+               let logs = try? await Backend.shared.foodLogs(userId: userId, from: symptomsFrom, to: end) {
+                triggers = SymptomTriggers.analyze(meals: logs.map { (name: $0.name, time: $0.loggedAt) },
+                                                   symptoms: symptoms.map(\.entry), asOf: Date())
+            }
             error = nil
         } catch {
             if Task.isCancelled { return }
