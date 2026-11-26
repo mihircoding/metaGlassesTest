@@ -10,6 +10,29 @@ struct DashboardView: View {
     @State private var careTeam = CareTeamModel()
     @State private var steps: Int?
     @State private var activeKcal: Double?
+    /// When food was logged over the last 90 days before today; today's logs come live from `app.today`.
+    @State private var earlierLogTimes: [Date] = []
+    /// The newest blood pressure and blood sugar readings from the last 30 days.
+    @State private var latestBloodPressure: VitalLogRow?
+    @State private var latestGlucose: VitalLogRow?
+    @AppStorage(GlucoseUnit.storageKey) private var glucoseUnit = GlucoseUnit.mgDl
+    /// The newest symptom diary entry from the last 30 days.
+    @State private var latestSymptom: SymptomLogRow?
+
+    /// Conditions where blood pressure or blood sugar is part of routine care.
+    private static let vitalsConditions: Set<String> = ["t1_diabetes", "t2_diabetes", "hypertension", "heart_disease", "ckd"]
+    private var showsVitals: Bool {
+        latestBloodPressure != nil || latestGlucose != nil
+            || !Self.vitalsConditions.isDisjoint(with: app.profile?.conditions ?? [])
+    }
+
+    private var showsSymptoms: Bool {
+        latestSymptom != nil || !SymptomDiary.conditions.isDisjoint(with: app.profile?.conditions ?? [])
+    }
+
+    private var streak: Int {
+        LoggingStreak.days(logged: earlierLogTimes + (app.today?.logs.map(\.loggedAt) ?? []), today: Date())
+    }
 
     private var consumed: Nutrients { app.today?.consumed ?? .zero }
     private var exercise: Double { app.today?.exerciseKcal ?? 0 }
@@ -56,17 +79,147 @@ struct DashboardView: View {
                             healthTile("Active energy", activeKcal.map { "\(Int($0.rounded())) kcal" } ?? "–", "Apple Health")
                         }
                     }
+                    if streak >= 2 { streakCard }
+                    if showsVitals { vitalsCard }
+                    if showsSymptoms { symptomCard }
+                    FluidCard()
                     weightCard
                 }
                 .padding()
             }
             .navigationTitle("Dashboard")
+            .refreshable {
+                await app.refresh()
+                await careTeam.load()
+                await loadWeights()
+                await loadEarlierLogs()
+                await loadVitals()
+                await loadSymptoms()
+            }
+            // Re-fetched when the day rolls over, so yesterday moves into the history.
+            .task(id: DayKey.key(for: app.today?.date ?? Date())) { await loadEarlierLogs() }
             .task(id: app.weightsVersion) { await loadWeights() }
+            .task(id: app.vitalsVersion) { await loadVitals() }
+            .task(id: app.symptomsVersion) { await loadSymptoms() }
             .task(id: app.today?.consumed.kcal) { await loadHealth() }  // display only, not added to the goal
             .onAppear { Task { await loadHealth() } }  // after connecting from More
             .onAppear { Task { await careTeam.load() } }  // reload when returning from Care Team
             .fullScreenCover(item: $glassesMode) { mode in GlassesModeView(useGlasses: mode == .glasses) }
         }
+    }
+
+    /// "From 84.1 kg to 82.0 kg", for VoiceOver.
+    private var weightSummary: String {
+        guard let first = weights.first, let last = weights.last else { return "" }
+        let f = { (kg: Double) in kg.formatted(.number.precision(.fractionLength(1))) }
+        return "From \(f(first.weightKg)) kg to \(f(last.weightKg)) kg"
+    }
+
+    private var streakCard: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "flame.fill").font(.title3).foregroundStyle(.orange)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(streak)-day logging streak").font(.subheadline.weight(.semibold))
+                Text(app.today?.logs.isEmpty == false ? "Logged today. Keep it going!" : "Log something today to keep it going.")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .padding(12)
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+        .accessibilityElement(children: .combine)
+    }
+
+    /// Best effort: without it the streak card just stays hidden.
+    private func loadEarlierLogs() async {
+        guard let userId = Backend.shared.userId else { return }
+        let startOfToday = Calendar.current.startOfDay(for: Date())
+        guard let from = Calendar.current.date(byAdding: .day, value: -90, to: startOfToday) else { return }
+        if let logs = try? await Backend.shared.foodLogs(userId: userId, from: from, to: startOfToday) {
+            earlierLogTimes = logs.map(\.loggedAt)
+        }
+    }
+
+    private var vitalsCard: some View {
+        NavigationLink { VitalsView() } label: {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Label("Vitals", systemImage: "heart.text.square").font(.subheadline.weight(.semibold)).foregroundStyle(Theme.bad)
+                    Spacer()
+                    Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+                }
+                HStack(alignment: .top, spacing: 12) {
+                    vitalTile("Blood pressure", latestBloodPressure.flatMap { v in
+                        v.systolic.flatMap { s in v.diastolic.map { d in "\(s)/\(d)" } }
+                    }, latestBloodPressure?.bloodPressureCategory.map { ($0.title, $0.color) })
+                    vitalTile("Blood sugar", latestGlucose?.glucoseMgDl.map(glucoseUnit.format),
+                              latestGlucose?.glucoseCategory.map { ($0.title, $0.color) })
+                }
+            }
+            .padding(12)
+            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Shows your readings and lets you log a new one")
+    }
+
+    private func vitalTile(_ title: String, _ value: String?, _ category: (String, Color)?) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title).font(.footnote).foregroundStyle(.secondary)
+            Text(value ?? "Tap to log").font(value == nil ? Font.subheadline : Font.headline.monospacedDigit())
+                .foregroundStyle(value == nil ? Color.secondary : Color.primary)
+            if let category { CategoryChip(title: category.0, color: category.1) }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+    }
+
+    /// Best effort: without it the card shows "Tap to log".
+    private func loadVitals() async {
+        guard let userId = Backend.shared.userId else { return }
+        let now = Date()
+        guard let rows = try? await Backend.shared.vitals(userId: userId, from: now.addingTimeInterval(-30 * 86_400),
+                                                           to: now.addingTimeInterval(86_400)) else { return }
+        latestBloodPressure = rows.last { $0.kind == .bloodPressure }
+        latestGlucose = rows.last { $0.kind == .glucose }
+    }
+
+    private var symptomCard: some View {
+        NavigationLink { SymptomsView() } label: {
+            HStack(alignment: .top, spacing: 10) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("Symptoms", systemImage: "list.bullet.clipboard").font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.accent2)
+                    if let row = latestSymptom {
+                        Text(row.symptoms.map(\.title).joined(separator: ", ")).font(.subheadline).lineLimit(2)
+                        Text("Last logged \(row.loggedAt.formatted(.relative(presentation: .named)))")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    } else {
+                        Text("How's your digestion today? Tap to log symptoms.").font(.subheadline).foregroundStyle(.secondary)
+                    }
+                }
+                Spacer()
+                if let row = latestSymptom {
+                    CategoryChip(title: "\(row.severity)/10", color: SymptomDiary.severityColor(row.severity))
+                }
+                Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityHint("Shows your symptom diary and lets you log how you feel")
+    }
+
+    /// Best effort: without it the card shows the prompt to log.
+    private func loadSymptoms() async {
+        guard let userId = Backend.shared.userId else { return }
+        let now = Date()
+        guard let rows = try? await Backend.shared.symptoms(userId: userId, from: now.addingTimeInterval(-30 * 86_400),
+                                                             to: now.addingTimeInterval(86_400)) else { return }
+        latestSymptom = rows.last
     }
 
     private var exerciseTile: some View {
@@ -123,17 +276,34 @@ struct DashboardView: View {
                 Button("Retry") { Task { await loadWeights() } }.buttonStyle(.bordered)
             }
         } else if weights.count >= 2 {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Weight, last 30 days").font(.footnote).foregroundStyle(.secondary)
-                Chart(weights) { w in
-                    LineMark(x: .value("Date", w.measuredAt), y: .value("kg", w.weightKg))
-                        .foregroundStyle(Theme.accent)
+            NavigationLink { WeightHistoryView() } label: {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text("Weight, last 30 days").font(.footnote).foregroundStyle(.secondary)
+                        Spacer()
+                        Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+                    }
+                    Chart(weights) { w in
+                        LineMark(x: .value("Date", w.measuredAt), y: .value("kg", w.weightKg))
+                            .foregroundStyle(Theme.accent)
+                    }
+                    .chartYScale(domain: .automatic(includesZero: false))
+                    // Three date labels fit; four ran off the edge ("Nov…").
+                    .chartXAxis {
+                        AxisMarks(values: .automatic(desiredCount: 3)) { _ in
+                            AxisGridLine()
+                            AxisValueLabel(format: .dateTime.month(.abbreviated).day())
+                        }
+                    }
+                    .frame(height: 80)
+                    .accessibilityLabel("Weight over the last 30 days")
+                    .accessibilityValue(weightSummary)
                 }
-                .chartYScale(domain: .automatic(includesZero: false))
-                .frame(height: 80)
+                .padding(12)
+                .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
             }
-            .padding(12)
-            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+            .buttonStyle(.plain)
+            .accessibilityHint("Shows every weigh-in")
         }
     }
 

@@ -82,6 +82,74 @@ final class ScreenTourTests: XCTestCase {
             app.staticTexts["Care Team"].firstMatch.tap()
             sleep(3)
             snap("27-patient-care-team")
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+        }
+        let vitals = app.buttons["Vitals"].firstMatch
+        if vitals.waitForExistence(timeout: 3) || app.staticTexts["Vitals"].exists {
+            (vitals.exists ? vitals : app.staticTexts["Vitals"].firstMatch).tap()
+            sleep(3)
+            snap("28-patient-vitals")
+            let log = app.navigationBars["Vitals"].buttons["Log a reading"]
+            if log.waitForExistence(timeout: 3) { log.tap() }
+            if app.buttons["Blood pressure"].waitForExistence(timeout: 3) {
+                app.buttons["Blood pressure"].tap()
+                sleep(1)
+                let systolic = app.textFields["Systolic in millimeters of mercury"]
+                if systolic.waitForExistence(timeout: 3) {
+                    systolic.tap()
+                    systolic.typeText("185")
+                    app.textFields["Diastolic in millimeters of mercury"].tap()
+                    app.textFields["Diastolic in millimeters of mercury"].typeText("112")
+                    let done = app.toolbars.buttons["Done"].firstMatch
+                    if done.exists { done.tap() }  // the advice sits under the keyboard
+                    sleep(1)
+                    snap("29-patient-log-blood-pressure")  // crisis advice; cancelled, never saved
+                }
+                app.buttons["Cancel"].tap()
+            }
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+        }
+        // The symptom diary, and the advice for a red-flag symptom (cancelled, never saved).
+        let symptoms = app.buttons["Symptoms"].firstMatch
+        if symptoms.waitForExistence(timeout: 3) {
+            symptoms.tap()
+            sleep(3)
+            snap("28b-patient-symptoms")
+            let log = app.navigationBars["Symptoms"].buttons["Log symptoms"]
+            if log.waitForExistence(timeout: 3) {
+                log.tap()
+                let stuck = app.buttons["Food stuck in throat or chest"]
+                if stuck.waitForExistence(timeout: 3) {
+                    app.buttons["Bloating"].tap()
+                    stuck.tap()
+                    for _ in 0..<3 where !app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "emergency room")).firstMatch.isHittable {
+                        app.swipeUp()
+                    }
+                    sleep(1)
+                    snap("28c-patient-log-symptoms")
+                }
+                app.buttons["Cancel"].tap()
+            }
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+        }
+        // A digestive condition, with its recipe ideas.
+        let conditions = app.buttons["Conditions"].firstMatch
+        if conditions.waitForExistence(timeout: 3) {
+            conditions.tap()
+            let ibd = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "IBD")).firstMatch
+            if !ibd.waitForExistence(timeout: 3) { app.swipeUp() }
+            if ibd.exists {
+                ibd.tap()
+                sleep(1)
+                // Scroll until the first recipe is on screen, then a little more to show the list.
+                // The row is one combined link element, so match on its label.
+                let firstRecipe = app.descendants(matching: .any)
+                    .matching(NSPredicate(format: "label BEGINSWITH %@", "Chicken Meatballs")).firstMatch
+                for _ in 0..<6 where !(firstRecipe.exists && firstRecipe.isHittable) { app.swipeUp() }
+                app.swipeUp()
+                sleep(1)
+                snap("29b-condition-recipes")
+            }
         }
     }
 
@@ -102,6 +170,34 @@ final class ScreenTourTests: XCTestCase {
             app.swipeUp()
             sleep(1)
             snap("32-doctor-patient-detail-lower")
+            app.buttons["Body"].tap()
+            sleep(4)
+            snap("34-doctor-patient-vitals")
+            app.buttons["Notes"].tap()
+            sleep(2)
+            snap("35-doctor-patient-notes")
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+        }
+        let james = app.staticTexts["James Carter"].firstMatch
+        if james.waitForExistence(timeout: 5) {
+            james.tap()
+            sleep(3)
+            app.buttons["Body"].tap()
+            sleep(4)
+            snap("36-doctor-patient-blood-pressure")
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+        }
+        // Alex has IBS: his symptom diary and the food it points to.
+        let alex = app.staticTexts["Alex Kim"].firstMatch
+        if alex.waitForExistence(timeout: 5) {
+            alex.tap()
+            sleep(3)
+            app.buttons["Body"].tap()
+            sleep(4)
+            let header = app.staticTexts.matching(NSPredicate(format: "label ==[c] %@", "Symptoms, last 30 days")).firstMatch
+            for _ in 0..<4 where !(header.exists && header.isHittable) { app.swipeUp() }
+            sleep(1)
+            snap("37-doctor-patient-symptoms")
             app.navigationBars.buttons.element(boundBy: 0).tap()
         }
 
@@ -128,8 +224,7 @@ final class ScreenTourTests: XCTestCase {
         let passwordField = app.secureTextFields["Password"]
         passwordField.tap()
         passwordField.typeText(demoPassword)
-        app.buttons.matching(identifier: "Sign in").allElementsBoundByIndex.last?.tap()
-        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 30), "sign-in did not reach the tab bar")
+        XCTAssertTrue(RelaunchTests.submitSignIn(in: app), "sign-in did not reach the tab bar, even after a retry")
         dismissSavePasswordPrompt()
     }
 
@@ -176,14 +271,23 @@ final class ScreenTourTests: XCTestCase {
     }
 
     /// The Supabase session survives relaunches, so a previous test may leave the app signed in.
+    /// Loading that session can stall for a minute or more when CI's simulator loses its connection
+    /// to Supabase (see RelaunchTests). After 8s the loading screen offers Sign out, which clears the
+    /// session on the device without waiting for the network, so use it when it shows.
     private func signOutIfNeeded() {
         let welcome = app.buttons["Create account"]
         let tabBar = app.tabBars.firstMatch
-        let deadline = Date().addingTimeInterval(20)
-        while Date() < deadline && !welcome.exists && !tabBar.exists { usleep(250_000) }
+        let loadingSignOut = app.buttons["Sign out"]  // with no tab bar, only the loading screen has one
+        let deadline = Date().addingTimeInterval(60)
+        while Date() < deadline && !welcome.exists && !tabBar.exists && !loadingSignOut.exists { usleep(250_000) }
         if !welcome.exists && !tabBar.exists {
-            snap("00-stuck-on-launch-\(name.filter(\.isLetter))")
-            print("LAUNCH-DEBUG stuck after relaunch:\n\(app.debugDescription)")
+            snap("00-slow-launch-\(name.filter(\.isLetter))")
+            print("LAUNCH-DEBUG no welcome or tabs after relaunch:\n\(app.debugDescription)")
+        }
+        if loadingSignOut.exists && !tabBar.exists {
+            loadingSignOut.tap()
+            XCTAssertTrue(welcome.waitForExistence(timeout: 10), "the loading screen's Sign out did not reach the welcome screen")
+            return
         }
         guard tabBar.exists else { return }
         tabBar.buttons["More"].tap()

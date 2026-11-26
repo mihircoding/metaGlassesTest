@@ -1,7 +1,10 @@
 import Foundation
 import NutraCore
 import Observation
+import OSLog
 import Supabase
+
+let startupLog = Logger(subsystem: "com.nutravision.app", category: "Startup")
 
 /// App-wide state: who is signed in, their profile and today's totals.
 @Observable
@@ -15,6 +18,22 @@ final class AppModel {
     var banner: String?
     /// Bumped when a weight is logged so the Dashboard sparkline reloads.
     var weightsVersion = 0
+    /// Bumped when a blood pressure or glucose reading is logged or deleted.
+    var vitalsVersion = 0
+    /// Bumped when a symptom diary entry is logged or deleted.
+    var symptomsVersion = 0
+    /// Set after a password-reset link signed the user in; RootView then asks for the new password.
+    var choosingNewPassword = false
+
+    /// A reset email's link: sign in with its one-time code, then ask for a new password.
+    func openPasswordResetLink(_ url: URL) async {
+        do {
+            try await Backend.shared.openPasswordResetLink(url)
+            choosingNewPassword = true
+        } catch {
+            banner = "That reset link didn't work (\(error.localizedDescription)). Links expire after an hour; request a new one."
+        }
+    }
 
     struct DoctorCredentials { var specialty: String; var license: String }
     /// Set by sign-up before the account exists; written to the doctor profile on first load (retried by refresh()).
@@ -46,12 +65,21 @@ final class AppModel {
 
     /// Follows the auth state for the app's lifetime; call once from the root view's `.task`.
     func start() async {
+        startupLog.debug("start: subscribing to auth state")
         for await (event, session) in Backend.shared.client.auth.authStateChanges {
+            startupLog.debug("auth event \(String(describing: event), privacy: .public), session: \(session != nil), expired: \(session?.isExpired ?? false)")
             if let session {
-                if event == .initialSession || event == .signedIn { await load(userId: session.user.id) }
+                // Not awaited: on a bad network a load can take minutes, and a sign-out arriving
+                // meanwhile must still be handled straight away.
+                if event == .initialSession || event == .signedIn { startLoad(userId: session.user.id) }
             } else {
+                currentLoad?.task.cancel()
+                currentLoad = nil
                 profile = nil
                 today = nil
+                banner = nil
+                choosingNewPassword = false  // the sheet can't save without a session
+                pendingDoctorCredentials = nil
                 phase = .signedOut
             }
         }
@@ -71,7 +99,8 @@ final class AppModel {
 
     func refresh() async {
         guard let userId = Backend.shared.userId else { return }
-        await load(userId: userId)
+        startupLog.debug("refresh: reloading")
+        await startLoad(userId: userId).value
         // Best-effort: a failed import keeps its anchors and is retried on the next refresh.
         if profile?.role == .patient, HealthSync.shared.isAuthorized {
             do {
@@ -85,14 +114,36 @@ final class AppModel {
         }
     }
 
+    /// The profile load in flight, if any. Only one runs at a time and the newest wins: at launch the
+    /// initial session and the scene becoming active both ask for a load, so the first is cancelled
+    /// rather than loading the day twice, and a refresh after an edit never reuses an older load.
+    @ObservationIgnored private var currentLoad: (token: UUID, task: Task<Void, Never>)?
+
+    @discardableResult
+    private func startLoad(userId: UUID) -> Task<Void, Never> {
+        currentLoad?.task.cancel()
+        let token = UUID()
+        let task = Task {
+            await load(userId: userId)
+            if currentLoad?.token == token { currentLoad = nil }
+        }
+        currentLoad = (token, task)
+        return task
+    }
+
     private func load(userId: UUID) async {
+        let started = Date()
+        startupLog.debug("load: fetching profile")
         do {
             var profile = try await Backend.shared.profile(id: userId)
+            startupLog.debug("load: profile arrived after \(Date().timeIntervalSince(started), format: .fixed(precision: 1))s")
+            try Task.checkCancellation()  // signed out (or switched user) while fetching
             if profile.role == .doctor, let creds = pendingDoctorCredentials {
                 profile.specialty = creds.specialty
                 profile.licenseNumber = creds.license
                 try await Backend.shared.updateProfile(profile)
                 pendingDoctorCredentials = nil
+                try Task.checkCancellation()  // a sign-out during the update must not bring the doctor tabs back
             }
             banner = nil
             self.profile = profile
@@ -108,6 +159,8 @@ final class AppModel {
             }
             try await today?.load()
         } catch {
+            if Task.isCancelled { return }  // superseded: the newer state already applies
+            startupLog.error("load failed after \(Date().timeIntervalSince(started), format: .fixed(precision: 1))s: \(String(describing: error), privacy: .public)")
             banner = error.localizedDescription
         }
     }

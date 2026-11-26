@@ -4,7 +4,7 @@ import XCTest
 final class ConditionCatalogTests: XCTestCase {
   func testTableValues() {
     XCTAssertEqual(ConditionCatalog.all.map(\.id), ["general","t2_diabetes","t1_diabetes","hypertension","heart_disease",
-      "high_cholesterol","ckd","liver","celiac","weight_loss","hypothyroid","ibs","bodybuilding","endurance","pregnancy"])
+      "high_cholesterol","ckd","liver","celiac","weight_loss","hypothyroid","ibs","ibd","eoe","bodybuilding","endurance","pregnancy"])
     let h = ConditionCatalog.condition(id: "hypertension")
     XCTAssertEqual([h.proteinPct, h.carbsPct, h.fatPct, h.sodiumMg, h.satFatPctMax, h.fiberG], [18, 55, 27, 1500, 6, 30])
     let ckd = ConditionCatalog.condition(id: "ckd")
@@ -21,11 +21,24 @@ final class ConditionCatalogTests: XCTestCase {
       XCTAssertFalse(c.recommend.isEmpty || c.avoid.isEmpty || c.summary.isEmpty, c.id)
     }
   }
+  func testEveryConditionCitesHTTPSSources() {
+    for c in ConditionCatalog.all {
+      let sources = ConditionCatalog.sources(for: c.id)
+      XCTAssertFalse(sources.isEmpty, c.id)
+      for s in sources { XCTAssertEqual(s.url.scheme, "https", "\(c.id) \(s.title)") }
+    }
+    XCTAssertEqual(ConditionCatalog.calorieMethod.url.scheme, "https")
+  }
   func testKeywordFlags() {
     XCTAssertTrue(KeywordFlag.gluten.matches("Whole Wheat Bread"))
     XCTAssertFalse(KeywordFlag.gluten.matches("Brown rice"))
     XCTAssertTrue(KeywordFlag.pregnancyAvoid.matches("Salmon sashimi"))
     XCTAssertTrue(KeywordFlag.highFodmap.matches("garlic naan"))
+    XCTAssertTrue(KeywordFlag.eoeTriggers.matches("Scrambled eggs with cheese"))
+    XCTAssertTrue(KeywordFlag.eoeTriggers.matches("Peanut butter toast"))
+    XCTAssertFalse(KeywordFlag.eoeTriggers.matches("Roasted eggplant"))
+    XCTAssertFalse(KeywordFlag.eoeTriggers.matches("Butternut squash soup with nutmeg"))
+    XCTAssertFalse(KeywordFlag.eoeTriggers.matches("Grilled chicken and rice"))
     XCTAssertEqual(ConditionCatalog.condition(id: "celiac").flag, .gluten)
     XCTAssertFalse(KeywordFlag.pregnancyAvoid.matches("Strawberries"))
     XCTAssertFalse(KeywordFlag.gluten.matches("Buckwheat pancakes"))

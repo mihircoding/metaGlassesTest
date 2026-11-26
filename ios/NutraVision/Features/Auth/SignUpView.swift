@@ -1,6 +1,13 @@
 import SwiftUI
+import UIKit
 
 struct SignUpView: View {
+    /// UI tests launch with -UITests: iOS's strong-password suggestion for `.newPassword` swallows
+    /// their typed keystrokes, leaving one character in the field.
+    private static var passwordContentType: UITextContentType {
+        ProcessInfo.processInfo.arguments.contains("-UITests") ? .password : .newPassword
+    }
+
     @Environment(AppModel.self) private var app
     @State private var role: Role = .patient
     @State private var fullName = ""
@@ -31,7 +38,7 @@ struct SignUpView: View {
                 TextField("Full name", text: $fullName).textContentType(.name)
                 TextField("Email", text: $email).textContentType(.emailAddress).keyboardType(.emailAddress)
                     .textInputAutocapitalization(.never).autocorrectionDisabled()
-                SecureField("Password (8+ characters)", text: $password).textContentType(.newPassword)
+                SecureField("Password (8+ characters)", text: $password).textContentType(Self.passwordContentType)
                 if let passwordError { Text(passwordError).foregroundStyle(Theme.bad).font(.footnote) }
             }
             if role == .doctor {
@@ -48,6 +55,11 @@ struct SignUpView: View {
                 if busy { ProgressView() } else { Text("Create account") }
             }
             .disabled(busy || !valid)
+            Section {
+                NavigationLink("How NutraVision uses your data") { PrivacyView() }
+            } footer: {
+                Text("NutraVision is not medical advice. Talk to your doctor before changing your diet.")
+            }
         }
         .navigationTitle("Create account")
     }

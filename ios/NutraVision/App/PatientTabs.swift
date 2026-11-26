@@ -1,17 +1,5 @@
 import SwiftUI
 
-/// Titled stand-in until a later task builds the real screen.
-struct PlaceholderScreen: View {
-    let title: String
-
-    var body: some View {
-        NavigationStack {
-            ContentUnavailableView(title, systemImage: "hammer", description: Text("Coming soon."))
-                .navigationTitle(title)
-        }
-    }
-}
-
 struct PatientTabs: View {
     @Environment(AppModel.self) private var app
     private enum Tab: Hashable { case dashboard, diary, add, progress, more }

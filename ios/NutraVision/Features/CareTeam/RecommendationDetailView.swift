@@ -10,6 +10,8 @@ struct RecommendationDetailView: View {
     let onDone: () async -> Void
     @State private var error: String?
     @State private var working = false
+    /// The last answer sent, so Retry can send it again.
+    @State private var lastAnswer: Bool?
 
     static func title(for rec: RecommendationRow) -> String {
         switch rec.kind {
@@ -31,7 +33,9 @@ struct RecommendationDetailView: View {
                 Section {
                     if let error {
                         Text(error).font(.footnote).foregroundStyle(Theme.bad)
-                        Button("Retry") { self.error = nil }
+                        if let lastAnswer {
+                            Button("Retry") { respond(accept: lastAnswer) }.disabled(working)
+                        }
                     }
                     HStack {
                         Button("Accept") { respond(accept: true) }.buttonStyle(.borderedProminent).tint(Theme.accent)
@@ -99,6 +103,8 @@ struct RecommendationDetailView: View {
     }
 
     private func respond(accept: Bool) {
+        lastAnswer = accept
+        error = nil
         working = true
         Task {
             defer { working = false }

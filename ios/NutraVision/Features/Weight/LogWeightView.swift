@@ -32,6 +32,7 @@ struct LogWeightView: View {
                         Text("Weight")
                         Spacer()
                         TextField("0", text: $text).keyboardType(.decimalPad).multilineTextAlignment(.trailing)
+                            .accessibilityLabel("Weight")
                             .frame(width: 90)
                         Picker("Unit", selection: $useLb) {
                             Text("kg").tag(false)

@@ -25,6 +25,14 @@ struct PatientSummary: Identifiable {
     var id: UUID { profile.id }
 }
 
+/// One patient's last 7 days, fetched together for the list.
+private struct PatientWeek: Sendable {
+    let logs: [FoodLogRow]
+    let vitals: [VitalLogRow]
+    let fluids: [FluidLogRow]
+    let symptoms: [SymptomLogRow]
+}
+
 @Observable
 @MainActor
 final class PatientsModel {
@@ -40,13 +48,41 @@ final class PatientsModel {
             let today = Backend.dayInterval(Date())
             let from = Calendar.current.date(byAdding: .day, value: -6, to: today.start) ?? today.start
             let todayKey = DayKey.key(for: today.start)
+            let end = today.end
+            // All patients' weeks at once rather than one request after another.
+            let weekByPatient = try await withThrowingTaskGroup(of: (UUID, PatientWeek).self) { group in
+                for id in profiles.map(\.id) {
+                    group.addTask {
+                        let week = PatientWeek(
+                            logs: try await Backend.shared.foodLogs(userId: id, from: from, to: end),
+                            // Best effort, so the list still works on a backend without migration 0006.
+                            vitals: (try? await Backend.shared.vitals(userId: id, from: from, to: end)) ?? [],
+                            fluids: (try? await Backend.shared.fluids(userId: id, from: from, to: end)) ?? [],
+                            // and without 0007
+                            symptoms: (try? await Backend.shared.symptoms(userId: id, from: from, to: end)) ?? [])
+                        return (id, week)
+                    }
+                }
+                var out: [UUID: PatientWeek] = [:]
+                for try await (id, week) in group { out[id] = week }
+                return out
+            }
             var result: [PatientSummary] = []
             for profile in profiles.sorted(by: { $0.fullName < $1.fullName }) {
-                let logs = try await Backend.shared.foodLogs(userId: profile.id, from: from, to: today.end)
+                let week = weekByPatient[profile.id] ?? PatientWeek(logs: [], vitals: [], fluids: [], symptoms: [])
+                let logs = week.logs
                 let byDay = Dictionary(grouping: logs, by: { DayKey.key(for: $0.loggedAt) })
                 let totals: [Nutrients] = byDay.sorted { $0.key < $1.key }.map { $0.value.map(\.total).sum() }
+                let fluidDays = Dictionary(grouping: week.fluids, by: { DayKey.key(for: $0.loggedAt) })
+                    .sorted { $0.key < $1.key }.map { $0.value.reduce(0) { $0 + $1.ml } }
                 // ponytail: goal ignores exercise here (list view); the diary shows the exact figure.
-                let flags = PatientFlags.flags(days: totals, targets: profile.targets, dailyGoalKcal: profile.targets.kcal)
+                let symptomFlags: [String] = SymptomFlags.flags(entries: week.symptoms.map(\.entry), days: 7)
+                let flags: [String] = VitalFlags.flags(
+                    bloodPressure: week.vitals.compactMap { v in v.systolic.flatMap { s in v.diastolic.map { (systolic: s, diastolic: $0) } } },
+                    glucose: week.vitals.compactMap { v in v.glucoseMgDl.map { (mgDl: $0, context: v.glucoseContext ?? .other) } },
+                    fluidDays: fluidDays, fluidLimitMl: profile.fluidLimitMl)
+                    + symptomFlags
+                    + PatientFlags.flags(days: totals, targets: profile.targets, dailyGoalKcal: profile.targets.kcal)
                 let todayKcal: Double = byDay[todayKey].map { $0.map(\.total).sum().kcal } ?? 0
                 let average: Double? = totals.isEmpty ? nil : totals.reduce(0) { $0 + $1.kcal } / Double(totals.count)
                 result.append(PatientSummary(profile: profile, todayKcal: todayKcal, averageKcal: average, flags: flags))
@@ -62,7 +98,22 @@ final class PatientsModel {
 }
 
 struct PatientsView: View {
+    @Environment(AppModel.self) private var app
     @State private var model = PatientsModel()
+    @State private var query = ""
+    @State private var flaggedFirst = false
+
+    /// Filtered by name or email; optionally the patients with the most flags first.
+    private var shown: [PatientSummary] {
+        let q = query.trimmingCharacters(in: .whitespaces)
+        let matching = q.isEmpty ? model.patients : model.patients.filter {
+            $0.profile.fullName.localizedCaseInsensitiveContains(q) || $0.profile.email.localizedCaseInsensitiveContains(q)
+        }
+        guard flaggedFirst else { return matching }
+        return matching.enumerated()
+            .sorted { ($0.element.flags.count, -$0.offset) > ($1.element.flags.count, -$1.offset) }
+            .map(\.element)
+    }
 
     var body: some View {
         NavigationStack {
@@ -70,17 +121,39 @@ struct PatientsView: View {
                 if let error = model.error {
                     Section { InlineError(message: error) { Task { await model.load() } } }
                 }
-                if model.loaded && model.error == nil && model.patients.isEmpty {
+                if app.profile?.isVerified == false {
+                    Section { VerificationNotice() }
+                } else if model.loaded && model.error == nil && model.patients.isEmpty {
                     Section { Text("No patients yet. Send a request from the Requests tab.").foregroundStyle(.secondary) }
                 }
-                ForEach(model.patients) { patient in
+                if !query.isEmpty && shown.isEmpty && !model.patients.isEmpty {
+                    Section { Text("No patients match \u{201C}\(query)\u{201D}.").foregroundStyle(.secondary) }
+                }
+                ForEach(shown) { patient in
                     NavigationLink { PatientDetailView(patient: patient.profile) } label: { row(patient) }
                 }
             }
             .overlay { if !model.loaded { ProgressView() } }
             .navigationTitle("Patients")
+            .searchable(text: $query, prompt: "Search patients")
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Menu {
+                        Picker("Sort", selection: $flaggedFirst) {
+                            Text("By name").tag(false)
+                            Text("Needs attention first").tag(true)
+                        }
+                    } label: {
+                        Image(systemName: "arrow.up.arrow.down")
+                    }
+                    .accessibilityLabel("Sort patients")
+                }
+            }
             .task { await model.load() }
-            .refreshable { await model.load() }
+            .refreshable {
+                await model.load()
+                if app.profile?.isVerified == false { await app.refresh() }
+            }
         }
     }
 

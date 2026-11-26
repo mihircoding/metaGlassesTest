@@ -23,25 +23,32 @@ final class RequestsModel {
 }
 
 struct RequestsView: View {
+    @Environment(AppModel.self) private var app
     @State private var model = RequestsModel()
     @State private var email = ""
     @State private var sending = false
     /// Shown verbatim, e.g. "No patient with that email".
     @State private var sendError: String?
+    /// The link a swipe asked to revoke, awaiting confirmation.
+    @State private var revoking: CareLinkRow?
 
     var body: some View {
         NavigationStack {
             List {
-                Section("Request a patient") {
-                    TextField("Patient email", text: $email)
-                        .textContentType(.emailAddress)
-                        .keyboardType(.emailAddress)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                    Button("Send request") { send() }
-                        .disabled(sending || email.trimmingCharacters(in: .whitespaces).isEmpty)
-                    if let sendError {
-                        Text(sendError).font(.footnote).foregroundStyle(Theme.bad)
+                if app.profile?.isVerified == false {
+                    Section { VerificationNotice() }
+                } else {
+                    Section("Request a patient") {
+                        TextField("Patient email", text: $email)
+                            .textContentType(.emailAddress)
+                            .keyboardType(.emailAddress)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                        Button("Send request") { send() }
+                            .disabled(sending || email.trimmingCharacters(in: .whitespaces).isEmpty)
+                        if let sendError {
+                            Text(sendError).font(.footnote).foregroundStyle(Theme.bad)
+                        }
                     }
                 }
                 if let error = model.error {
@@ -56,7 +63,16 @@ struct RequestsView: View {
             }
             .navigationTitle("Requests")
             .task { await model.load() }
-            .refreshable { await model.load() }
+            .refreshable {
+                await model.load()
+                if app.profile?.isVerified == false { await app.refresh() }
+            }
+            .confirmationDialog("Revoke access?", isPresented: Binding(get: { revoking != nil }, set: { if !$0 { revoking = nil } }),
+                                titleVisibility: .visible, presenting: revoking) { link in
+                Button("Revoke", role: .destructive) { revoke(link) }
+            } message: { link in
+                Text("You will no longer see \(link.patientEmail ?? "this patient")'s food log.")
+            }
         }
     }
 
@@ -74,7 +90,7 @@ struct RequestsView: View {
         }
         .swipeActions {
             if link.status == .pending || link.status == .accepted {
-                Button("Revoke", role: .destructive) { revoke(link) }
+                Button("Revoke", role: .destructive) { revoking = link }
             }
         }
     }

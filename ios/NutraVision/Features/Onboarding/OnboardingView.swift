@@ -37,7 +37,18 @@ struct OnboardingView: View {
                     .buttonStyle(.borderedProminent)
                 }
                 .navigationTitle("Step \(step + 1) of 3")
+                .keyboardDoneButton()
                 .onChange(of: draft) { _, _ in draft?.recomputeTargets() }
+                .toolbar {
+                    // Otherwise a new account (or someone who signed in to the wrong one) has no way out.
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Sign out") {
+                            Task {
+                                do { try await Backend.shared.signOut() } catch { self.error = error.localizedDescription }
+                            }
+                        }
+                    }
+                }
             } else {
                 ProgressView()
             }

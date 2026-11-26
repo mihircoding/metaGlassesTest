@@ -10,10 +10,12 @@ struct PlusSheet: View {
     @State private var showSearch = false
     @State private var showExercise = false
     @State private var showWeight = false
+    @State private var showQuickAdd = false
     @State private var scanned: FoodItem?
     @State private var lookingUp = false
     @State private var error: String?
     @State private var lastCode: String?
+    @State private var barcodeNotFound = false
 
     private var meal: Meal { MealSlot.meal(at: Date()) }
 
@@ -25,6 +27,13 @@ struct PlusSheet: View {
                         Text(error).font(.footnote).foregroundStyle(Theme.bad)
                         if let lastCode {
                             Button("Retry") { Task { await lookUp(lastCode) } }.buttonStyle(.bordered)
+                        }
+                        if barcodeNotFound {
+                            NavigationLink {
+                                CreateFoodView(onSaved: { self.error = nil; barcodeNotFound = false })
+                            } label: {
+                                Label("Create this food", systemImage: "plus.circle")
+                            }
                         }
                     }
                 }
@@ -38,6 +47,7 @@ struct PlusSheet: View {
                 Button { showPhoto = true } label: { Label("Photo scan", systemImage: "camera") }
                 Button { showBarcode = true } label: { Label("Barcode", systemImage: "barcode.viewfinder") }
                 Button { showSearch = true } label: { Label("Search food", systemImage: "magnifyingglass") }
+                Button { showQuickAdd = true } label: { Label("Quick add calories", systemImage: "bolt") }
                 Button { showExercise = true } label: { Label("Log exercise", systemImage: "figure.run") }
                 Button { showWeight = true } label: { Label("Log weight", systemImage: "scalemass") }
             }
@@ -59,6 +69,9 @@ struct PlusSheet: View {
             .sheet(isPresented: $showExercise) {
                 LogExerciseView(date: Date()) { dismiss() }
             }
+            .sheet(isPresented: $showQuickAdd) {
+                QuickAddView(date: Date()) { dismiss() }
+            }
             .sheet(isPresented: $showWeight) {
                 LogWeightView { dismiss() }
             }
@@ -76,12 +89,14 @@ struct PlusSheet: View {
         lookingUp = true
         error = nil
         lastCode = nil
+        barcodeNotFound = false
         defer { lookingUp = false }
         do {
             if let product = try await Backend.shared.lookupBarcode(code).first {
                 scanned = product
             } else {
                 error = "No product found for barcode \(code)."
+                barcodeNotFound = true
             }
         } catch {
             self.error = error.localizedDescription

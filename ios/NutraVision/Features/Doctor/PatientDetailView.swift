@@ -1,16 +1,19 @@
 import NutraCore
 import SwiftUI
 
-/// A linked patient, read-only: Diary | Progress | Weight & workouts | Plan & history.
+/// A linked patient, read-only: Diary | Progress | Body (vitals, fluids, weigh-ins, workouts) | Plan & history,
+/// plus the doctor's own private Notes.
 struct PatientDetailView: View {
     let patient: ProfileRow
 
     private enum Segment: String, CaseIterable {
-        case diary = "Diary", progress = "Progress", bodyLog = "Weight & workouts", plan = "Plan & history"
+        case diary = "Diary", progress = "Progress", bodyLog = "Body", plan = "Plan", notes = "Notes"
     }
 
     @State private var segment = Segment.diary
     @State private var sending = false
+    /// The last 30 days as a CSV file, prepared when the screen opens so the share button works at once.
+    @State private var export: URL?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -26,9 +29,11 @@ struct PatientDetailView: View {
             case .progress:
                 NutritionProgressView(userId: patient.id, subject: patient)
             case .bodyLog:
-                PatientBodyList(userId: patient.id)
+                PatientBodyList(patient: patient)
             case .plan:
                 PatientPlanHistory(userId: patient.id)
+            case .notes:
+                ClinicalNotesView(patient: patient)
             }
         }
         .navigationTitle(patient.fullName.isEmpty ? patient.email : patient.fullName)
@@ -37,23 +42,93 @@ struct PatientDetailView: View {
             ToolbarItem(placement: .primaryAction) {
                 Button("Send recommendation") { sending = true }
             }
+            if let export {
+                ToolbarItem(placement: .secondaryAction) {
+                    ShareLink(item: export) {
+                        Label("Export last \(DiaryExport.days) days (CSV)", systemImage: "square.and.arrow.up")
+                    }
+                }
+            }
         }
         .sheet(isPresented: $sending) { SendRecommendationView(patient: patient) }
+        .task { export = try? await DiaryExport.file(for: patient) }  // no button if it fails
     }
 }
 
-/// Last 90 days of weigh-ins and workouts, newest first.
+/// Last 90 days of blood pressure, blood sugar, weigh-ins and workouts, 30 days of symptoms and
+/// 14 days of fluids; newest first.
 private struct PatientBodyList: View {
-    let userId: UUID
+    let patient: ProfileRow
+    private var userId: UUID { patient.id }
 
+    @AppStorage(GlucoseUnit.storageKey) private var unit = GlucoseUnit.mgDl
     @State private var weights: [WeightLogRow] = []
     @State private var workouts: [WorkoutRow] = []
+    /// Oldest first.
+    @State private var vitals: [VitalLogRow] = []
+    @State private var fluidDays: [FluidDay] = []
+    /// Oldest first. Nil when the server has no symptom diary (before migration 0007).
+    @State private var symptoms: [SymptomLogRow]?
+    @State private var triggers = SymptomTriggers.Result.empty
     @State private var error: String?
+
+    private struct FluidDay: Identifiable {
+        let day: Date
+        let ml: Double
+        var id: Date { day }
+    }
+
+    private var bloodPressure: [VitalLogRow] { vitals.filter { $0.kind == .bloodPressure } }
+    private var glucose: [VitalLogRow] { vitals.filter { $0.kind == .glucose } }
 
     var body: some View {
         List {
             if let error {
                 Section { InlineError(message: error) { Task { await load() } } }
+            }
+            Section("Blood pressure") {
+                if bloodPressure.isEmpty { Text("No readings").foregroundStyle(.secondary) }
+                if bloodPressure.count >= 2 { BloodPressureChart(readings: bloodPressure) }
+                ForEach(bloodPressure.reversed().prefix(20)) { VitalRowView(vital: $0, unit: unit) }
+            }
+            Section("Blood sugar") {
+                if glucose.isEmpty { Text("No readings").foregroundStyle(.secondary) }
+                if glucose.count >= 2 { GlucoseChart(readings: glucose, unit: unit) }
+                ForEach(glucose.reversed().prefix(20)) { VitalRowView(vital: $0, unit: unit) }
+            }
+            if let symptoms {
+                Section {
+                    if symptoms.isEmpty { Text("No symptoms logged").foregroundStyle(.secondary) }
+                    if !symptoms.isEmpty { SymptomChart(rows: symptoms) }
+                    if !triggers.candidates.isEmpty {
+                        Text("Often followed by symptoms").font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
+                        TriggerRows(result: triggers)
+                    }
+                    ForEach(symptoms.reversed().prefix(20)) { SymptomRowView(row: $0) }
+                } header: {
+                    Text("Symptoms, last 30 days")
+                } footer: {
+                    if !triggers.candidates.isEmpty {
+                        Text("Foods logged in the 6 hours before symptoms, compared with the patient's other meals. A pattern to discuss, not a diagnosis.")
+                    }
+                }
+            }
+            Section {
+                if fluidDays.isEmpty { Text("No drinks logged").foregroundStyle(.secondary) }
+                ForEach(fluidDays) { entry in
+                    let over = patient.fluidLimitMl.map { entry.ml > $0 } ?? false
+                    HStack {
+                        Text(entry.day, format: .dateTime.weekday(.abbreviated).month().day())
+                        Spacer()
+                        Text("\(Int(entry.ml.rounded())) ml").monospacedDigit()
+                            .foregroundStyle(over ? Theme.bad : .secondary)
+                    }
+                    .accessibilityElement(children: .combine)
+                }
+            } header: {
+                Text("Fluids, last 14 days")
+            } footer: {
+                if let limit = patient.fluidLimitMl { Text("Patient's limit: \(Int(limit)) ml a day.") }
             }
             Section("Weight") {
                 if weights.isEmpty { Text("No weigh-ins").foregroundStyle(.secondary) }
@@ -91,9 +166,23 @@ private struct PatientBodyList: View {
     private func load() async {
         let end = Backend.dayInterval(Date()).end
         let from = Calendar.current.date(byAdding: .day, value: -90, to: end) ?? end
+        let fluidsFrom = Calendar.current.date(byAdding: .day, value: -14, to: end) ?? end
         do {
             weights = try await Backend.shared.weights(userId: userId, from: from, to: end)
             workouts = try await Backend.shared.workouts(userId: userId, from: from, to: end)
+            vitals = try await Backend.shared.vitals(userId: userId, from: from, to: end)
+            let drinks = try await Backend.shared.fluids(userId: userId, from: fluidsFrom, to: end)
+            let byDay = Dictionary(grouping: drinks) { Calendar.current.startOfDay(for: $0.loggedAt) }
+            fluidDays = byDay.map { day, rows in FluidDay(day: day, ml: rows.reduce(0) { $0 + $1.ml }) }
+                .sorted { $0.day > $1.day }
+            // Best effort, so the tab still works on a backend without migration 0007.
+            let symptomsFrom = Calendar.current.date(byAdding: .day, value: -30, to: end) ?? end
+            symptoms = try? await Backend.shared.symptoms(userId: userId, from: symptomsFrom, to: end)
+            if let symptoms, !symptoms.isEmpty,
+               let logs = try? await Backend.shared.foodLogs(userId: userId, from: symptomsFrom, to: end) {
+                triggers = SymptomTriggers.analyze(meals: logs.map { (name: $0.name, time: $0.loggedAt) },
+                                                   symptoms: symptoms.map(\.entry), asOf: Date())
+            }
             error = nil
         } catch {
             if Task.isCancelled { return }

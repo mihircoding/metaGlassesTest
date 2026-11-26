@@ -59,6 +59,7 @@ struct CreateFoodView: View {
             Text(title)
             Spacer()
             TextField("0", text: text).keyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(width: 90)
+                .accessibilityLabel(title)
         }
     }
 

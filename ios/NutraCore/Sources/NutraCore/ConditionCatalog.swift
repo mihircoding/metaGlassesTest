@@ -1,7 +1,7 @@
 import Foundation
 
 public enum KeywordFlag: Sendable {
-  case gluten, highFodmap, pregnancyAvoid
+  case gluten, highFodmap, pregnancyAvoid, eoeTriggers
 
   // ponytail: word-start keyword match — misses unnamed ingredients and fused compounds like "wholewheat".
   public var keywords: [String] {
@@ -15,6 +15,20 @@ public enum KeywordFlag: Sendable {
     case .pregnancyAvoid:
       return ["sushi", "sashimi", "raw", "unpasteurized", "deli", "salami", "pâté", "swordfish",
               "king mackerel", "shark", "tilefish"]
+    case .eoeTriggers:
+      // The six foods most often removed: milk, wheat, egg, soy, nuts, fish and shellfish.
+      return ["milk", "cheese", "yogurt", "yoghurt", "butter", "cream", "latte", "egg", "omelet", "mayonnaise",
+              "wheat", "bread", "pasta", "bagel", "pizza", "cracker", "noodle", "tortilla", "soy", "tofu", "edamame",
+              "peanut", "almond", "walnut", "cashew", "pecan", "pistachio", "hazelnut", "fish", "salmon", "tuna",
+              "cod", "shrimp", "prawn", "crab", "lobster", "sushi"]
+    }
+  }
+
+  /// Words that start like a keyword but aren't the food ("eggplant" isn't egg, "butternut" isn't butter).
+  private var exceptions: [String] {
+    switch self {
+    case .eoeTriggers: return ["eggplant", "butternut"]
+    case .gluten, .highFodmap, .pregnancyAvoid: return []
     }
   }
 
@@ -22,6 +36,7 @@ public enum KeywordFlag: Sendable {
     let n = foodName.lowercased()
     if self == .gluten && (n.contains("gluten-free") || n.contains("gluten free")) { return false }
     let words = n.split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+      .filter { word in !exceptions.contains { word.hasPrefix($0) } }
     return keywords.contains { keyword in
       let kw = keyword.split(separator: " ")
       guard !kw.isEmpty, words.count >= kw.count else { return false }
@@ -297,6 +312,46 @@ public enum ConditionCatalog {
       ],
       flag: .highFodmap,
       samplePlan: SamplePlans.ibs),
+    Condition(
+      id: "ibd", name: "IBD (Crohn's, ulcerative colitis)", icon: "cross.case.fill",
+      proteinPct: 20, carbsPct: 50, fatPct: 30, sodiumMg: 2300, satFatPctMax: 10, fiberG: 25,
+      summary: "Eat enough protein and energy to avoid weight loss and malnutrition. In remission, a varied Mediterranean-style diet is encouraged; during a flare, soft, well-cooked, lower-fiber foods are easier to tolerate. Structured diets such as CDED, IBD-AID or SCD are options to try with your care team.",
+      recommend: [
+        "Eat regular, smaller meals with enough protein (lean meat, fish, eggs)",
+        "In remission, eat a Mediterranean-style mix of vegetables, fruit, olive oil and fish",
+        "During a flare, choose soft, well-cooked, lower-fiber foods",
+        "With a stricture, avoid tough skins, seeds and raw fibrous vegetables",
+        "Drink plenty of fluids, especially with diarrhea",
+        "Ask your doctor to check iron, vitamin D, B12 and calcium",
+      ],
+      avoid: [
+        "Ultra-processed foods with emulsifiers and additives",
+        "Large amounts of processed and red meat",
+        "Sugary drinks and sweets",
+        "Raw, high-fiber foods during a flare",
+        "Alcohol during a flare",
+      ],
+      samplePlan: SamplePlans.ibd),
+    Condition(
+      id: "eoe", name: "Eosinophilic esophagitis (EoE)", icon: "allergens",
+      proteinPct: 20, carbsPct: 50, fatPct: 30, sodiumMg: 2300, satFatPctMax: 10, fiberG: 28,
+      summary: "Food allergens drive inflammation in the esophagus. Many people follow an elimination diet set by their allergist or GI doctor, removing milk alone or up to six foods (milk, wheat, egg, soy, nuts and seafood), then adding foods back one at a time.",
+      recommend: [
+        "Follow the elimination diet your care team prescribed",
+        "Read labels for milk, wheat, egg, soy, nuts, fish and shellfish",
+        "Add foods back one at a time, with check-ups as your doctor advises",
+        "Take small bites, chew well and eat slowly",
+        "Drink water with meals",
+        "Work with a dietitian so the diet stays nutritionally complete",
+      ],
+      avoid: [
+        "The foods your plan removes (often milk, wheat, egg, soy, nuts, seafood)",
+        "Hidden allergens in sauces, baked goods and processed foods",
+        "Cross-contact in shared kitchens and fryers",
+        "Dry, tough or large bites of meat and bread that can get stuck",
+      ],
+      flag: .eoeTriggers,
+      samplePlan: SamplePlans.eoe),
     Condition(
       id: "bodybuilding", name: "Bodybuilding / weight training", icon: "figure.strengthtraining.traditional",
       proteinPct: 30, carbsPct: 45, fatPct: 25, sodiumMg: 2300, satFatPctMax: 10, fiberG: 30,

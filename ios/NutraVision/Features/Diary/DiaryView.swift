@@ -16,6 +16,8 @@ struct DiaryView: View {
     @State private var addTarget: AddTarget?
     @State private var editing: FoodLogRow?
     @State private var showExercise = false
+    /// The meal being copied from the day before, while it runs.
+    @State private var copying: Meal?
 
     private struct AddTarget: Identifiable {
         let meal: Meal
@@ -68,6 +70,13 @@ struct DiaryView: View {
                         Text("\(Int(w.durationMin.rounded())) min · \(Int(w.kcal.rounded())) kcal")
                             .foregroundStyle(.secondary)
                     }
+                    .swipeActions {
+                        if !readOnly {
+                            Button(role: .destructive) { Task { await delete(w) } } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
+                    }
                 }
                 if !readOnly {
                     Button("Add exercise") { showExercise = true }
@@ -77,6 +86,7 @@ struct DiaryView: View {
         .navigationTitle("Diary")
         .navigationBarTitleDisplayMode(.inline)
         .task(id: date) { await reload() }
+        .refreshable { await reload() }
         .sheet(item: $addTarget, onDismiss: { Task { await reload() } }) { target in
             AddFoodView(meal: target.meal, date: date)
         }
@@ -143,6 +153,14 @@ struct DiaryView: View {
             }
             if !readOnly {
                 Button("Add Food") { addTarget = AddTarget(meal: meal) }
+                if rows.isEmpty {
+                    Button {
+                        Task { await copyFromPreviousDay(meal) }
+                    } label: {
+                        Label("Copy from \(previousDayName)", systemImage: "doc.on.doc")
+                    }
+                    .disabled(copying != nil)
+                }
             }
         } header: {
             HStack { Text(meal.title); Spacer(); Text("\(Int(kcal.rounded())) kcal") }
@@ -158,13 +176,20 @@ struct DiaryView: View {
             Circle().fill(verdict.level.color).frame(width: 10, height: 10).accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text(row.name)
-                Text("\(row.servingDesc) × \(row.servings.formatted(.number.precision(.fractionLength(0...2))))")
+                Text(row.servings == 1 ? row.servingDesc
+                     : "\(row.servingDesc) × \(row.servings.formatted(.number.precision(.fractionLength(0...2))))")
                     .font(.footnote).foregroundStyle(.secondary)
+                // Say why a food is flagged; the dot alone left patients and doctors guessing.
+                if verdict.level != .goodFit, let reason = verdict.reasons.first {
+                    Text(reason.text).font(.caption).foregroundStyle(verdict.level.color)
+                }
             }
             Spacer()
             Text("\(Int(row.total.kcal.rounded()))").foregroundStyle(.secondary)
         }
         .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityValue(verdict.level.rawValue)
     }
 
     // MARK: Actions
@@ -188,6 +213,47 @@ struct DiaryView: View {
         do {
             try await Backend.shared.deleteFoodLog(id: row.id)
             await HealthSync.shared.remove(row.id)
+            await reload()
+            if userId == Backend.shared.userId { await app.refresh() }
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    private var previousDayName: String {
+        Calendar.current.isDateInToday(date) ? "yesterday" : "the day before"
+    }
+
+    /// Logs the same foods as the day before's `meal` on this day: most people eat the same breakfast often.
+    private func copyFromPreviousDay(_ meal: Meal) async {
+        guard let previous = Calendar.current.date(byAdding: .day, value: -1, to: date) else { return }
+        copying = meal
+        defer { copying = nil }
+        do {
+            let source = try await Backend.shared.foodLogs(userId: userId, day: previous).filter { $0.meal == meal }
+            guard !source.isEmpty else {
+                error = "Nothing was logged for \(meal.title.lowercased()) \(previousDayName)."
+                return
+            }
+            let loggedAt = FoodLogRow.loggedAt(for: date)
+            let copies = source.map { row in
+                var copy = row
+                copy.id = UUID()
+                copy.loggedAt = loggedAt
+                copy.scanId = nil
+                return copy
+            }
+            try await app.addLogs(copies)
+            await reload()
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    /// Removes a workout. One imported from Apple Health stays deleted: imports only pick up new ones.
+    private func delete(_ workout: WorkoutRow) async {
+        do {
+            try await Backend.shared.deleteWorkout(id: workout.id)
             await reload()
             if userId == Backend.shared.userId { await app.refresh() }
         } catch {

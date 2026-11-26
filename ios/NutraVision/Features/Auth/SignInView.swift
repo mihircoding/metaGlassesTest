@@ -5,6 +5,7 @@ struct SignInView: View {
     @State private var password = ""
     @State private var busy = false
     @State private var error: String?
+    @State private var forgot = false
 
     var body: some View {
         Form {
@@ -20,8 +21,10 @@ struct SignInView: View {
                 if busy { ProgressView() } else { Text("Sign in") }
             }
             .disabled(busy || email.isEmpty || password.isEmpty)
+            Button("Forgot password?") { forgot = true }.font(.footnote)
         }
         .navigationTitle("Sign in")
+        .sheet(isPresented: $forgot) { ForgotPasswordView(email: email) }
     }
 
     // AppModel follows the auth state, so success needs no navigation here.

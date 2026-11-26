@@ -3,6 +3,7 @@ import type { Nutrients } from "./nutrients.ts";
 import { searchFdc } from "./fdc.ts";
 import type { FetchFn } from "./fdc.ts";
 import type { ClaudeFood } from "./claude.ts";
+import type { ClaimScan } from "./quota.ts";
 
 export type CallClaude = (imageB64: string, mediaType: string) => Promise<ClaudeFood>;
 export type AnalyzedItem = {
@@ -14,7 +15,7 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
 export async function handleAnalyzeFood(
-  req: Request, deps: { fdcKey: string; fetchFn: FetchFn; callClaude: CallClaude },
+  req: Request, deps: { fdcKey: string; fetchFn: FetchFn; callClaude: CallClaude; claimScan: ClaimScan },
 ): Promise<Response> {
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
   let body: { image_base64?: unknown; media_type?: unknown };
@@ -23,6 +24,12 @@ export async function handleAnalyzeFood(
   const mt = body.media_type;
   if (typeof img !== "string" || img.length === 0 || img.length > 1_500_000 || (mt !== "image/jpeg" && mt !== "image/png")) {
     return json({ error: "Send image_base64 (jpeg/png, under 1.5 MB) and media_type" }, 400);
+  }
+
+  const quota = await deps.claimScan(req);
+  if (quota === "unauthorized") return json({ error: "Sign in to scan food" }, 401);
+  if (quota === "limit") {
+    return json({ error: "You have used today's AI photo scans. Search or scan a barcode instead, or try again tomorrow." }, 429);
   }
 
   let food: ClaudeFood;

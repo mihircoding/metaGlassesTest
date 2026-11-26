@@ -17,7 +17,15 @@ struct ScanResultCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             ForEach($items) { $item in
-                ScanItemRow(item: $item)
+                HStack(alignment: .top) {
+                    ScanItemRow(item: $item)
+                    // The AI can see things that aren't there (a garnish, the plate); let the user drop them.
+                    Button { items.removeAll { $0.id == item.id } } label: {
+                        Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Remove \(item.name)")
+                }
                 Divider()
             }
             HStack {
@@ -63,6 +71,7 @@ private struct ScanItemRow: View {
             }
             Spacer()
             TextField("g", text: $text)
+                .accessibilityLabel("Grams")
                 .keyboardType(.decimalPad)
                 .multilineTextAlignment(.trailing)
                 .frame(width: 64)

@@ -22,9 +22,18 @@ final class Backend {
     let client = SupabaseClient(
         supabaseURL: Config.supabaseURL,
         supabaseKey: Config.supabaseAnonKey,
-        // Emit the stored session at launch, even offline; requests refresh an expired token themselves.
-        options: .init(auth: .init(emitLocalSessionAsInitialSession: true))
+        options: Backend.clientOptions
     )
+
+    // Emit the stored session at launch, even offline; requests refresh an expired token themselves.
+    nonisolated private static var clientOptions: SupabaseClientOptions {
+        #if DEBUG
+        // Debug builds log Supabase requests to the unified log (tokens and passwords are redacted).
+        .init(auth: .init(emitLocalSessionAsInitialSession: true), global: .init(logger: OSLogSupabaseLogger()))
+        #else
+        .init(auth: .init(emitLocalSessionAsInitialSession: true))
+        #endif
+    }
 
     private init() {}
 
@@ -51,6 +60,37 @@ final class Backend {
 
     func signOut() async throws {
         try await run { try await client.auth.signOut() }
+    }
+
+    // MARK: Password reset
+
+    /// Where the reset email's link sends the user: back into the app (handled by `AppURLHandler`).
+    /// Must be listed under Authentication › URL Configuration › Redirect URLs in Supabase.
+    static let passwordResetURL = URL(string: "nutravision://auth/reset")!
+
+    static func isPasswordResetLink(_ url: URL) -> Bool {
+        url.scheme == passwordResetURL.scheme && url.host == passwordResetURL.host && url.path == passwordResetURL.path
+    }
+
+    func sendPasswordReset(email: String) async throws {
+        try await run { try await client.auth.resetPasswordForEmail(email, redirectTo: Self.passwordResetURL) }
+    }
+
+    /// Signs in with the one-time code in the reset link, so the new password can be saved.
+    func openPasswordResetLink(_ url: URL) async throws {
+        try await run { _ = try await client.auth.session(from: url) }
+    }
+
+    func setPassword(_ password: String) async throws {
+        try await run { _ = try await client.auth.update(user: UserAttributes(password: password)) }
+    }
+
+    /// Deletes the signed-in user and, through cascades, everything they own (`delete_my_account`),
+    /// then drops the session on this device. The server no longer knows the session, so a failure
+    /// telling it about the sign-out is expected and ignored.
+    func deleteAccount() async throws {
+        try await run { try await client.rpc("delete_my_account").execute() }
+        try? await client.auth.signOut(scope: .local)
     }
 
     // MARK: Profiles
@@ -131,6 +171,11 @@ final class Backend {
         try await run { try await client.from("custom_foods").insert(food).execute() }
     }
 
+    /// Logged entries keep their own copy of the nutrients, so deleting a custom food leaves the diary as it is.
+    func deleteCustomFood(id: UUID) async throws {
+        try await run { try await client.from("custom_foods").delete().eq("id", value: id).execute() }
+    }
+
     // MARK: Edge Functions
 
     func searchFoods(query: String) async throws -> [FoodItem] {
@@ -200,6 +245,10 @@ final class Backend {
         try await run { try await client.from("weight_logs").insert(weight).execute() }
     }
 
+    func deleteWeight(id: UUID) async throws {
+        try await run { try await client.from("weight_logs").delete().eq("id", value: id).execute() }
+    }
+
     /// Apple Health imports: a weight already stored under the same `healthkit_uuid` is left as it is.
     func upsertWeights(_ weights: [WeightLogRow]) async throws {
         guard !weights.isEmpty else { return }
@@ -210,7 +259,80 @@ final class Backend {
         }
     }
 
+    // MARK: Vitals and fluids
+
+    func vitals(userId: UUID, from: Date, to: Date) async throws -> [VitalLogRow] {
+        try await run {
+            try await client.from("vital_logs").select().eq("user_id", value: userId)
+                .gte("measured_at", value: from).lt("measured_at", value: to)
+                .order("measured_at").execute().value
+        }
+    }
+
+    func insertVital(_ vital: VitalLogRow) async throws {
+        try await run { try await client.from("vital_logs").insert(vital).execute() }
+    }
+
+    func deleteVital(id: UUID) async throws {
+        try await run { try await client.from("vital_logs").delete().eq("id", value: id).execute() }
+    }
+
+    func fluids(userId: UUID, from: Date, to: Date) async throws -> [FluidLogRow] {
+        try await run {
+            try await client.from("fluid_logs").select().eq("user_id", value: userId)
+                .gte("logged_at", value: from).lt("logged_at", value: to)
+                .order("logged_at").execute().value
+        }
+    }
+
+    func insertFluid(_ fluid: FluidLogRow) async throws {
+        try await run { try await client.from("fluid_logs").insert(fluid).execute() }
+    }
+
+    func deleteFluid(id: UUID) async throws {
+        try await run { try await client.from("fluid_logs").delete().eq("id", value: id).execute() }
+    }
+
+    // MARK: Symptom diary
+
+    func symptoms(userId: UUID, from: Date, to: Date) async throws -> [SymptomLogRow] {
+        try await run {
+            try await client.from("symptom_logs").select().eq("user_id", value: userId)
+                .gte("logged_at", value: from).lt("logged_at", value: to)
+                .order("logged_at").execute().value
+        }
+    }
+
+    func insertSymptom(_ symptom: SymptomLogRow) async throws {
+        try await run { try await client.from("symptom_logs").insert(symptom).execute() }
+    }
+
+    func deleteSymptom(id: UUID) async throws {
+        try await run { try await client.from("symptom_logs").delete().eq("id", value: id).execute() }
+    }
+
+    // MARK: Clinical notes (doctor only)
+
+    func clinicalNotes(patientId: UUID) async throws -> [ClinicalNoteRow] {
+        try await run {
+            try await client.from("clinical_notes").select().eq("patient_id", value: patientId)
+                .order("created_at", ascending: false).execute().value
+        }
+    }
+
+    func insertClinicalNote(_ note: ClinicalNoteRow) async throws {
+        try await run { try await client.from("clinical_notes").insert(note).execute() }
+    }
+
+    func deleteClinicalNote(id: UUID) async throws {
+        try await run { try await client.from("clinical_notes").delete().eq("id", value: id).execute() }
+    }
+
     // MARK: Diet plans
+
+    func deleteDietPlan(id: UUID) async throws {
+        try await run { try await client.from("diet_plans").delete().eq("id", value: id).execute() }
+    }
 
     /// Newest first.
     func dietPlans(userId: UUID) async throws -> [DietPlanRow] {
@@ -322,6 +444,10 @@ final class Backend {
             let body = try? JSONDecoder().decode(ErrorBody.self, from: data)
             throw BackendError.message(body?.error ?? "Something went wrong. Please try again.")
         } catch let error as PostgrestError {
+            // A table from a migration the server doesn't have yet: PostgREST's text names its schema cache.
+            if error.code == "PGRST205" || error.code == "42P01" {
+                throw BackendError.message("This feature isn't available on the server yet. Please try again later.")
+            }
             throw BackendError.message(error.message)
         } catch let error as AuthError {
             throw BackendError.message(error.message)

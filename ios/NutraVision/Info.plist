@@ -15,11 +15,14 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.0</string>
+	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
-	<string>1</string>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>UILaunchScreen</key>
 	<dict/>
+	<!-- Only standard HTTPS, which is exempt: skips the export-compliance question on every upload. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 
 	<key>CFBundleURLTypes</key>
 	<array>
@@ -68,6 +71,12 @@
 		<string></string>
 		<key>TeamID</key>
 		<string>$(DEVELOPMENT_TEAM)</string>
+		<!-- A health app: don't let the SDK send Meta usage analytics. -->
+		<key>Analytics</key>
+		<dict>
+			<key>OptOut</key>
+			<true/>
+		</dict>
 	</dict>
 </dict>
 </plist>
