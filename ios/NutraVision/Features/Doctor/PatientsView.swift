@@ -76,11 +76,12 @@ final class PatientsModel {
                 let fluidDays = Dictionary(grouping: week.fluids, by: { DayKey.key(for: $0.loggedAt) })
                     .sorted { $0.key < $1.key }.map { $0.value.reduce(0) { $0 + $1.ml } }
                 // ponytail: goal ignores exercise here (list view); the diary shows the exact figure.
-                let flags = VitalFlags.flags(
+                let symptomFlags: [String] = SymptomFlags.flags(entries: week.symptoms.map(\.entry), days: 7)
+                let flags: [String] = VitalFlags.flags(
                     bloodPressure: week.vitals.compactMap { v in v.systolic.flatMap { s in v.diastolic.map { (systolic: s, diastolic: $0) } } },
                     glucose: week.vitals.compactMap { v in v.glucoseMgDl.map { (mgDl: $0, context: v.glucoseContext ?? .other) } },
                     fluidDays: fluidDays, fluidLimitMl: profile.fluidLimitMl)
-                    + SymptomFlags.flags(entries: week.symptoms.map(\.entry), days: 7)
+                    + symptomFlags
                     + PatientFlags.flags(days: totals, targets: profile.targets, dailyGoalKcal: profile.targets.kcal)
                 let todayKcal: Double = byDay[todayKey].map { $0.map(\.total).sum().kcal } ?? 0
                 let average: Double? = totals.isEmpty ? nil : totals.reduce(0) { $0 + $1.kcal } / Double(totals.count)

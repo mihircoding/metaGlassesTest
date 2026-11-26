@@ -31,6 +31,7 @@ struct LogSymptomView: View {
                                 Spacer()
                                 if selected.contains(symptom) {
                                     Image(systemName: "checkmark").foregroundStyle(Theme.accent).fontWeight(.semibold)
+                                        .accessibilityHidden(true)
                                 }
                             }
                         }

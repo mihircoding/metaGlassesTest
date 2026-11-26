@@ -7,7 +7,7 @@ struct SymptomsView: View {
     @Environment(AppModel.self) private var app
     /// Oldest first.
     @State private var rows: [SymptomLogRow] = []
-    @State private var triggers = SymptomTriggers.Result(candidates: [], baseline: 0)
+    @State private var triggers = SymptomTriggers.Result.empty
     @State private var loaded = false
     @State private var error: String?
     @State private var logging = false

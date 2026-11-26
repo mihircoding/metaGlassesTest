@@ -89,6 +89,8 @@ public enum SymptomTriggers {
     public let candidates: [Candidate]
     /// The share of all meals followed by symptoms.
     public let baseline: Double
+
+    public static let empty = Result(candidates: [], baseline: 0)
   }
 
   /// Symptoms this long after eating count as following that food.

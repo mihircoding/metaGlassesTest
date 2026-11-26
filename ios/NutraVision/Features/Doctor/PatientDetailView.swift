@@ -69,7 +69,7 @@ private struct PatientBodyList: View {
     @State private var fluidDays: [FluidDay] = []
     /// Oldest first. Nil when the server has no symptom diary (before migration 0007).
     @State private var symptoms: [SymptomLogRow]?
-    @State private var triggers = SymptomTriggers.Result(candidates: [], baseline: 0)
+    @State private var triggers = SymptomTriggers.Result.empty
     @State private var error: String?
 
     private struct FluidDay: Identifiable {
